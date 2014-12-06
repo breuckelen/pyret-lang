@@ -978,6 +978,7 @@ function isMethod(obj) { return obj instanceof PMethod; }
                 finishVal(next);
               }
             }
+            else if (isOpaque(next)) { finishVal("<internal value>"); }
             else if (isArray(next)) {
               // NOTE(joe): need to copy the array below because we will pop from it
               // Baffling bugs will result if next is passed directly
@@ -1070,7 +1071,6 @@ function isMethod(obj) { return obj instanceof PMethod; }
                 });
               }
             }
-
           }
           else {
             // Done with object, array, or ref, so pop the todo list, and pop
