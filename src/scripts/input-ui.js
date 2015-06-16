@@ -12,9 +12,12 @@ define(["q", "./output-ui"], function(Q, outputLib) {
   var Indenter = outputUI.Indenter;
   var indenter = new Indenter();
 
+  /*
+   * Note: below are helper functions copied from https://github.com/joyent/node/blob/master/lib/readline.js
+   */
   var functionKeyCodeReAnywhere = new RegExp('(?:\x1b+)(O|N|\\[|\\[\\[)(?:' + [
     '(\\d+)(?:;(\\d+))?([~^$])',
-    '(?:M([@ #!a`])(.)(.))', // mouse
+    '(?:M([@ #!a`])(.)(.))',
     '(?:1;)?(\\d+)?([a-zA-Z])'
   ].join('|') + ')');
   var metaKeyCodeReAnywhere = /(?:\x1b)([a-zA-Z0-9])/;
@@ -22,7 +25,7 @@ define(["q", "./output-ui"], function(Q, outputLib) {
   function codePointAt(str, index) {
     var code = str.charCodeAt(index);
     var low;
-    if (0xd800 <= code && code <= 0xdbff) { // High surrogate
+    if (0xd800 <= code && code <= 0xdbff) {
       low = str.charCodeAt(index + 1);
       if (!isNaN(low)) {
 	code = 0x10000 + (code - 0xd800) * 0x400 + (low - 0xdc00);
@@ -41,8 +44,6 @@ define(["q", "./output-ui"], function(Q, outputLib) {
       return false;
     }
 
-    // Code points are derived from:
-    // http://www.unicode.org/Public/UNIDATA/EastAsianWidth.txt
     if (code >= 0x1100 && (
 	code <= 0x115f ||  // Hangul Jamo
 	0x2329 === code || // LEFT-POINTING ANGLE BRACKET
@@ -77,24 +78,30 @@ define(["q", "./output-ui"], function(Q, outputLib) {
     return false;
   }
 
-  function numLines(line) {
-    var matches = line.match(/.*\n|.+$/g);
+  /**
+      Get the number of lines in a string
+      @param {string} str
+
+      @return {number} the number of lines in str
+   **/
+  function numLines(str) {
+    var matches = str.match(/.*\n/g);
 
     if(matches) {
-      var lastMatch = matches[matches.length - 1];
-
-      if(lastMatch.charAt(lastMatch.length - 1) === "\n") {
 	return matches.length + 1;
-      }
-      else {
-	return matches.length;
-      }
     }
     else {
       return 1;
     }
   }
 
+  /**
+      Keypress listener for the cli
+      @param {string} ch
+      @param {Object} key
+
+      @return {number} the number of lines in str
+   **/
   function onKeypress(ch, key) {
     if(!this.canListen()) {
       return;
@@ -130,7 +137,12 @@ define(["q", "./output-ui"], function(Q, outputLib) {
     else if(key && key.ctrl && key.name === "y") {
       this.copy();
     }
-    //TODO: how to decide what keys pass through?
+    else if(key && key.ctrl && key.name === "a") {
+      this.goToBeg();
+    }
+    else if(key && key.ctrl && key.name === "e") {
+      this.goToEnd();
+    }
     else {
       if(ch) {
 	this.addStr(ch);
@@ -174,6 +186,7 @@ define(["q", "./output-ui"], function(Q, outputLib) {
       this.interactionsNumber += 1;
     }
 
+    this.setListen(false);
     this.resetLine();
     this.promptString = this.interactionsNumber
       + "::1 "
@@ -481,7 +494,6 @@ define(["q", "./output-ui"], function(Q, outputLib) {
     }
 
     this.cursorPosition += str.length;
-    //this.moveCursor(str.length);
 
     if(str === " ") {
       this.refreshLine();
@@ -868,7 +880,7 @@ define(["q", "./output-ui"], function(Q, outputLib) {
       this.line = this.line.substring(0, this.cursorPosition - 1)
 	+ this.line.substring(this.cursorPosition, this.line.length);
 
-      this.cursorPosition -= 1;
+      this.moveCursor(-1);
       this.refreshLine();
       this.syncHistory();
     }
@@ -910,6 +922,32 @@ define(["q", "./output-ui"], function(Q, outputLib) {
 
   InputUI.prototype.copyLine = function() {
     copy_paste.copy(this.getLine(0, true));
+  };
+
+  InputUI.prototype.goToBeg = function() {
+    var lineUntilCursor = this.getLineUntilCursor();
+
+    if (lineUntilCursor.length === 0 || lineUntilCursor.charAt(lineUntilCursor.length - 1) !== "\n") {
+      this.moveCursor(-lineUntilCursor.length);
+      this.refreshLine();
+      this.syncHistory();
+    }
+  };
+
+  InputUI.prototype.goToEnd = function() {
+    var lineUntilCursor = this.getLineUntilCursor();
+    var curLine;
+
+    if (lineUntilCursor.length === 0 || lineUntilCursor.charAt(lineUntilCursor.length - 1) !== "\n") {
+      this.moveCursor(-lineUntilCursor.length);
+    }
+
+    this.moveCursor(1);
+    curLine = this.getLine(0, true);
+    this.moveCursor(-1);
+    this.moveCursor(curLine.length > 0 ? curLine.length - 1 : 0);
+    this.refreshLine();
+    this.syncHistory();
   };
 
   InputUI.prototype.__proto__ = events.EventEmitter.prototype;
