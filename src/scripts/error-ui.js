@@ -308,10 +308,10 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 
 	function drawMessageException(message) {
           var probablyErrorLocation = getLastUserLocation(e, 0);
-	  var msg = "";
+	  var msg;
 
           if(probablyErrorLocation !== undefined) {
-	    msg += " At:\n" + renderer.drawSrcloc(runtime, probablyErrorLocation);
+	    msg = message + " At:\n" + renderer.drawSrcloc(runtime, probablyErrorLocation);
           } else {
 	    msg = message;
           }
