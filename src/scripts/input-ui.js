@@ -131,6 +131,9 @@ define(["q", "./output-ui"], function(Q, outputLib) {
     else if(key && key.ctrl && key.name === "c") {
       this.keyboardInterrupt();
     }
+    else if(key && key.ctrl && key.name === "d") {
+      this.exit();
+    }
     else if(key && key.ctrl && key.name === "v") {
       this.pasteToRepl();
     }
@@ -897,8 +900,12 @@ define(["q", "./output-ui"], function(Q, outputLib) {
       this.prompt();
     }
     else {
-      process.exit();
+      this.quit();
     }
+  };
+
+  InputUI.prototype.exit = function() {
+    process.exit();
   };
 
   InputUI.prototype.pasteToRepl = function() {

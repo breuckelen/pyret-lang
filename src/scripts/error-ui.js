@@ -163,7 +163,7 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 
 	function drawErrorToString(e) {
 	  return function() {
-	    runtime.safeCall(function() {
+	    return runtime.safeCall(function() {
 		return runtime.toReprJS(e, "tostring");
 	      }, function(s) {
 		return s;
@@ -308,7 +308,7 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 
 	function drawMessageException(message) {
           var probablyErrorLocation = getLastUserLocation(e, 0);
-	  var msg;
+	  var msg = "";
 
           if(probablyErrorLocation !== undefined) {
 	    msg = message + " At:\n" + renderer.drawSrcloc(runtime, probablyErrorLocation);
