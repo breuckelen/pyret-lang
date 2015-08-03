@@ -1,43 +1,120 @@
 define([
     "./image-lib",
     "js/js-numbers",
-    "js/ffi-helpers"
-  ], function(imageLib, jsnums, ffiLib) {
+    "js/ffi-helpers",
+    "js/runtime-util",
+  ], function(imageLib, jsnums, ffiLib, util) {
 
-  return function(runtime, namespace) {
-    return runtime.loadJSModules(namespace, [imageLib, ffiLib], function(image, ffi) {
-      var colorDb = image.colorDb;
+  return util.definePyretModule(
+    "image",
+    [],
+    {
+      values: [
+        "circle",
+        "is-image-color",
+        "is-mode",
+        "is-x-place",
+        "is-y-place",
+        "is-angle",
+        "is-side-count",
+        "is-step-count",
+        "is-image",
+        "bitmap-url",
+        "open-image-url",
+        "image-url",
+        "images-equal",
+        "text",
+        "text-font",
+        "overlay",
+        "overlay-xy",
+        "overlay-align",
+        "underlay",
+        "underlay-xy",
+        "underlay-align",
+        "beside",
+        "beside-align",
+        "above",
+        "above-align",
+        "empty-scene",
+        "put-image",
+        "place-image",
+        "place-image-align",
+        "rotate",
+        "scale",
+        "scale-xy",
+        "flip-horizontal",
+        "flip-vertical",
+        "frame",
+        "crop",
+        "line",
+        "add-line",
+        "scene-line",
+        "square",
+        "rectangle",
+        "regular-polygon",
+        "ellipse",
+        "triangle",
+        "triangle-sas",
+        "triangle-sss",
+        "triangle-ass",
+        "triangle-ssa",
+        "triangle-aas",
+        "triangle-asa",
+        "triangle-saa",
+        "right-triangle",
+        "isosceles-triangle",
+        "star",
+        "star-sized",
+        "radial-star",
+        "star-polygon",
+        "rhombus",
+        "image-to-color-list",
+        "color-list-to-image",
+        "color-list-to-bitmap",
+        "image-width",
+        "image-height",
+        "image-baseline",
+        "name-to-color"
+      ],
+      types: [
+        "Image",
+        "Scene"
+      ]
+    },
+    function(runtime, namespace) {
+      return runtime.loadJSModules(namespace, [imageLib, ffiLib], function(image, ffi) {
+        var colorDb = image.colorDb;
 
-      var isString = runtime.isString;
+        var isString = runtime.isString;
 
-      var isFontFamily = function(x){
+        var isFontFamily = function(x){
+            return (isString(x) &&
+              (x.toString().toLowerCase() == "default" ||
+               x.toString().toLowerCase() == "decorative" ||
+               x.toString().toLowerCase() == "roman" ||
+               x.toString().toLowerCase() == "script" ||
+               x.toString().toLowerCase() == "swiss" ||
+               x.toString().toLowerCase() == "modern" ||
+               x.toString().toLowerCase() == "symbol" ||
+               x.toString().toLowerCase() == "system"))
+          || (x === false);		// false is also acceptable
+        };
+        var isFontStyle = function(x){
+            return (isString(x) &&
+              (x.toString().toLowerCase() == "normal" ||
+               x.toString().toLowerCase() == "italic" ||
+               x.toString().toLowerCase() == "slant"))
+          || (x === false);		// false is also acceptable
+        };
+        var isFontWeight = function(x){
+            return (isString(x) &&
+              (x.toString().toLowerCase() == "normal" ||
+               x.toString().toLowerCase() == "bold" ||
+               x.toString().toLowerCase() == "light"))
+          || (x === false);		// false is also acceptable
+        };
+        var isMode = function(x) {
           return (isString(x) &&
-            (x.toString().toLowerCase() == "default" ||
-             x.toString().toLowerCase() == "decorative" ||
-             x.toString().toLowerCase() == "roman" ||
-             x.toString().toLowerCase() == "script" ||
-             x.toString().toLowerCase() == "swiss" ||
-             x.toString().toLowerCase() == "modern" ||
-             x.toString().toLowerCase() == "symbol" ||
-             x.toString().toLowerCase() == "system"))
-        || (x === false);		// false is also acceptable
-      };
-      var isFontStyle = function(x){
-          return (isString(x) &&
-            (x.toString().toLowerCase() == "normal" ||
-             x.toString().toLowerCase() == "italic" ||
-             x.toString().toLowerCase() == "slant"))
-        || (x === false);		// false is also acceptable
-      };
-      var isFontWeight = function(x){
-          return (isString(x) &&
-            (x.toString().toLowerCase() == "normal" ||
-             x.toString().toLowerCase() == "bold" ||
-             x.toString().toLowerCase() == "light"))
-        || (x === false);		// false is also acceptable
-      };
-      var isMode = function(x) {
-        return (isString(x) &&
                 (x.toString().toLowerCase() == "solid" ||
                  x.toString().toLowerCase() == "outline")) ||
         ((jsnums.isReal(x)) &&
@@ -99,46 +176,65 @@ define([
           return runtime.isNumber(val) && jsnums.isReal(val) && jsnums.greaterThanOrEqual(val, 0);
         }, "Non-negative Real Number");
 
-      var _checkColor = p(image.isColorOrColorString, "Color");
 
-      var checkColor = function(val) {
-          var aColor = _checkColor(val);
-          if (colorDb.get(aColor)) {
-            aColor = colorDb.get(aColor);
-          }
-          return aColor;
-      };
+        var _checkColor = p(image.isColorOrColorString, "Color");
 
-      var checkImagePred = function(val) {
-        return runtime.isOpaque(val) && image.isImage(val.val);
-      };
-      var checkImageType = runtime.makeCheckType(checkImagePred, "Image");
-      var checkImage = function(val) {
-        checkImageType(val);
-        return val.val;
-      }
-      var checkImageOrScenePred = function(val) {
-        return runtime.isOpaque(val) && (image.isImage(val.val) || image.isScene(val.val));
-      };
-      var checkImageOrSceneType = runtime.makeCheckType(checkImageOrScenePred, "Image")
-      var checkImageOrScene = function(val) {
-        checkImageOrSceneType(val);
-        return val.val;
-      }
+        var checkColor = function(val) {
+            var aColor = _checkColor(val);
+            if (colorDb.get(aColor)) {
+              aColor = colorDb.get(aColor);
+            }
+            return aColor;
+        };
 
-      var checkScenePred = function(val) {
-        return runtime.isOpaque(val) && image.isScene(val.val);
-      };
+        var checkImagePred = function(val) {
+          return runtime.isOpaque(val) && image.isImage(val.val);
+        };
+        var checkImageType = runtime.makeCheckType(checkImagePred, "Image");
+        var checkImage = function(val) {
+          checkImageType(val);
+          return val.val;
+        }
+        var checkImageOrScenePred = function(val) {
+          return runtime.isOpaque(val) && (image.isImage(val.val) || image.isScene(val.val));
+        };
+        var checkImageOrSceneType = runtime.makeCheckType(checkImageOrScenePred, "Image")
+        var checkImageOrScene = function(val) {
+          checkImageOrSceneType(val);
+          return val.val;
+        }
 
-      var checkFontFamily = p(isFontFamily, "Font Family");
+        var checkScenePred = function(val) {
+          return runtime.isOpaque(val) && image.isScene(val.val);
+        };
 
-      var checkFontStyle = p(isFontStyle, "Font Style");
+        var checkFontFamily = p(isFontFamily, "Font Family");
 
-      var checkFontWeight = p(isFontWeight, "Font Weight");
+        var checkFontStyle = p(isFontStyle, "Font Style");
 
-      var checkPlaceX = p(isPlaceX, "X Place");
+        var checkFontWeight = p(isFontWeight, "Font Weight");
 
-      var checkPlaceY = p(isPlaceY, "Y Place");
+        var checkPlaceX = p(isPlaceX, "X Place");
+
+        var checkPlaceY = p(isPlaceY, "Y Place");
+
+
+        var checkAngle = p(image.isAngle, "Angle");
+
+
+        var checkMode = p(isMode, "Mode");
+
+        var checkSideCount = p(image.isSideCount, "Side Count");
+
+        var checkStepCount = p(image.isStepCount, "Step Count");
+
+        var checkPointsCount = p(image.isPointsCount, "Points Count");
+
+        var checkArity = ffi.checkArity;
+
+        var checkListofColor = p(function(val) {
+          return ffi.makeList(ffi.toArray(val).map(checkColor));
+        }, "List<Color>");
 
       var checkAngle = p(image.isAngle, "Angle");
 
@@ -591,6 +687,13 @@ define([
                     less(sideA + sideB, sideC)) {
                   throwMessage("The given side, angle and side will not form a triangle: "
                                + sideA + ", " + angleB + ", " + sideC);
+                } else {
+                  if (less(sideA + sideC, sideB) ||
+                      less(sideB + sideC, sideA) ||
+                      less(sideA + sideB, sideC)) {
+                    throwMessage("The given side, angle and side will not form a triangle: " 
+                                 + sideA + ", " + angleB + ", " + sideC);
+                  }
                 }
               }
 
@@ -846,21 +949,21 @@ define([
               return runtime.wrap(img.getHeight());
             }),
 
-            "image-baseline": f(function(maybeImg) {
-              checkArity(1, arguments, "image-baseline");
-              var img = checkImage(maybeImg);
-              return runtime.wrap(img.getBaseline());
-            }),
+              "image-baseline": f(function(maybeImg) {
+                checkArity(1, arguments, "image-baseline");
+                var img = checkImage(maybeImg);
+                return runtime.wrap(img.getBaseline());
+              }),
 
-            "name-to-color": f(function(maybeName) {
-              checkArity(1, arguments, "name-to-color");
-              var name = checkString(maybeName);
-              return runtime.wrap(colorDb.get(String(name)) || false);
-            })
+              "name-to-color": f(function(maybeName) {
+                checkArity(1, arguments, "name-to-color");
+                var name = checkString(maybeName);
+                return runtime.wrap(colorDb.get(String(name)) || false);
+              })
+            }),
           }),
-        }),
-        answer: runtime.namespace.get("nothing")
+          answer: runtime.namespace.get("nothing")
+        });
       });
-    });
-  } // end rt/ns fun
+    }); // end rt/ns fun
 });
