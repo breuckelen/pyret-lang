@@ -6,94 +6,94 @@ var chalk = require("chalk");
 var keypress = require("keypress");
 var copy_paste = require("copy-paste");
 
+/*
+ * Note: below are helper functions copied from https://github.com/joyent/node/blob/master/lib/readline.js
+ */
+var functionKeyCodeReAnywhere = new RegExp('(?:\x1b+)(O|N|\\[|\\[\\[)(?:' + [
+  '(\\d+)(?:;(\\d+))?([~^$])',
+  '(?:M([@ #!a`])(.)(.))',
+  '(?:1;)?(\\d+)?([a-zA-Z])'
+].join('|') + ')');
+var metaKeyCodeReAnywhere = /(?:\x1b)([a-zA-Z0-9])/;
+
+function codePointAt(str, index) {
+  var code = str.charCodeAt(index);
+  var low;
+  if (0xd800 <= code && code <= 0xdbff) {
+    low = str.charCodeAt(index + 1);
+    if (!isNaN(low)) {
+      code = 0x10000 + (code - 0xd800) * 0x400 + (low - 0xdc00);
+    }
+  }
+  return code;
+}
+
+function stripVTControlCharacters(str) {
+  str = str.replace(new RegExp(functionKeyCodeReAnywhere.source, 'g'), '');
+  return str.replace(new RegExp(metaKeyCodeReAnywhere.source, 'g'), '');
+}
+
+function isFullWidthCodePoint(code) {
+  if (isNaN(code)) {
+    return false;
+  }
+
+  if (code >= 0x1100 && (
+      code <= 0x115f ||  // Hangul Jamo
+      0x2329 === code || // LEFT-POINTING ANGLE BRACKET
+      0x232a === code || // RIGHT-POINTING ANGLE BRACKET
+      // CJK Radicals Supplement .. Enclosed CJK Letters and Months
+      (0x2e80 <= code && code <= 0x3247 && code !== 0x303f) ||
+      // Enclosed CJK Letters and Months .. CJK Unified Ideographs Extension A
+      0x3250 <= code && code <= 0x4dbf ||
+      // CJK Unified Ideographs .. Yi Radicals
+      0x4e00 <= code && code <= 0xa4c6 ||
+      // Hangul Jamo Extended-A
+      0xa960 <= code && code <= 0xa97c ||
+      // Hangul Syllables
+      0xac00 <= code && code <= 0xd7a3 ||
+      // CJK Compatibility Ideographs
+      0xf900 <= code && code <= 0xfaff ||
+      // Vertical Forms
+      0xfe10 <= code && code <= 0xfe19 ||
+      // CJK Compatibility Forms .. Small Form Variants
+      0xfe30 <= code && code <= 0xfe6b ||
+      // Halfwidth and Fullwidth Forms
+      0xff01 <= code && code <= 0xff60 ||
+      0xffe0 <= code && code <= 0xffe6 ||
+      // Kana Supplement
+      0x1b000 <= code && code <= 0x1b001 ||
+      // Enclosed Ideographic Supplement
+      0x1f200 <= code && code <= 0x1f251 ||
+      // CJK Unified Ideographs Extension B .. Tertiary Ideographic Plane
+      0x20000 <= code && code <= 0x3fffd)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+    Get the number of lines in a string
+    @param {string} str
+
+    @return {number} the number of lines in str
+ **/
+function numLines(str) {
+  var matches = str.match(/.*\n/g);
+
+  if(matches) {
+      return matches.length + 1;
+  }
+  else {
+    return 1;
+  }
+}
+
 define(["q", "./output-ui"], function(Q, outputLib) {
   var outputUI = outputLib('default');
   var renderer = new outputUI.Renderer();
   var Indenter = outputUI.Indenter;
   var indenter = new Indenter();
-
-  /*
-   * Note: below are helper functions copied from https://github.com/joyent/node/blob/master/lib/readline.js
-   */
-  var functionKeyCodeReAnywhere = new RegExp('(?:\x1b+)(O|N|\\[|\\[\\[)(?:' + [
-    '(\\d+)(?:;(\\d+))?([~^$])',
-    '(?:M([@ #!a`])(.)(.))',
-    '(?:1;)?(\\d+)?([a-zA-Z])'
-  ].join('|') + ')');
-  var metaKeyCodeReAnywhere = /(?:\x1b)([a-zA-Z0-9])/;
-
-  function codePointAt(str, index) {
-    var code = str.charCodeAt(index);
-    var low;
-    if (0xd800 <= code && code <= 0xdbff) {
-      low = str.charCodeAt(index + 1);
-      if (!isNaN(low)) {
-	code = 0x10000 + (code - 0xd800) * 0x400 + (low - 0xdc00);
-      }
-    }
-    return code;
-  }
-
-  function stripVTControlCharacters(str) {
-    str = str.replace(new RegExp(functionKeyCodeReAnywhere.source, 'g'), '');
-    return str.replace(new RegExp(metaKeyCodeReAnywhere.source, 'g'), '');
-  }
-
-  function isFullWidthCodePoint(code) {
-    if (isNaN(code)) {
-      return false;
-    }
-
-    if (code >= 0x1100 && (
-	code <= 0x115f ||  // Hangul Jamo
-	0x2329 === code || // LEFT-POINTING ANGLE BRACKET
-	0x232a === code || // RIGHT-POINTING ANGLE BRACKET
-	// CJK Radicals Supplement .. Enclosed CJK Letters and Months
-	(0x2e80 <= code && code <= 0x3247 && code !== 0x303f) ||
-	// Enclosed CJK Letters and Months .. CJK Unified Ideographs Extension A
-	0x3250 <= code && code <= 0x4dbf ||
-	// CJK Unified Ideographs .. Yi Radicals
-	0x4e00 <= code && code <= 0xa4c6 ||
-	// Hangul Jamo Extended-A
-	0xa960 <= code && code <= 0xa97c ||
-	// Hangul Syllables
-	0xac00 <= code && code <= 0xd7a3 ||
-	// CJK Compatibility Ideographs
-	0xf900 <= code && code <= 0xfaff ||
-	// Vertical Forms
-	0xfe10 <= code && code <= 0xfe19 ||
-	// CJK Compatibility Forms .. Small Form Variants
-	0xfe30 <= code && code <= 0xfe6b ||
-	// Halfwidth and Fullwidth Forms
-	0xff01 <= code && code <= 0xff60 ||
-	0xffe0 <= code && code <= 0xffe6 ||
-	// Kana Supplement
-	0x1b000 <= code && code <= 0x1b001 ||
-	// Enclosed Ideographic Supplement
-	0x1f200 <= code && code <= 0x1f251 ||
-	// CJK Unified Ideographs Extension B .. Tertiary Ideographic Plane
-	0x20000 <= code && code <= 0x3fffd)) {
-      return true;
-    }
-    return false;
-  }
-
-  /**
-      Get the number of lines in a string
-      @param {string} str
-
-      @return {number} the number of lines in str
-   **/
-  function numLines(str) {
-    var matches = str.match(/.*\n/g);
-
-    if(matches) {
-	return matches.length + 1;
-    }
-    else {
-      return 1;
-    }
-  }
 
   /**
       Keypress listener for the cli
@@ -900,7 +900,7 @@ define(["q", "./output-ui"], function(Q, outputLib) {
       this.prompt();
     }
     else {
-      this.quit();
+      this.exit();
     }
   };
 

@@ -21,27 +21,31 @@ r(["q", "js/repl-lib", "js/runtime-anf", "compiler/compile-structs.arr", "./inpu
   runtime.loadModules(runtime.namespace, [csLib], function(cs) {
     var sb = get(cs, "standard-builtins");
     var repl = replLib.create(runtime, runtime.namespace, sb, { name: "repl-cli", dialect: "Pyret"});
-    var res = repl.restartInteractions("");
+    var resultPromise = repl.restartInteractions("");
 
     inputUI.on("command", function(cmd) {
       inputUI.setListen(false);
 
-      res = res.then(function(_) {
-        return repl.run(cmd, "interactions:" + inputUI.getInteractionsNumber());
+      resultPromise = resultPromise.then(function(_) {
+	return repl.run(cmd, "interactions:" + inputUI.getInteractionsNumber());
       });
 
-      //Note(ben), executes when the previous res is "ready"
-      res.then(function(new_res) {
-        if(runtime.isSuccessResult(new_res)) {
-	  renderer.drawAndPrintAnswer(runtime, get(new_res.result, "answer"));
-	  checkUI.drawAndPrintCheckResults(runtime, get(new_res.result, "checks"));
-        }
-        else {
-	  var exception = new_res.exn;
-	  errorUI.drawAndPrintError(runtime, exception);
-        }
+      resultPromise.then(function(res) {
+	try {
+	  if(runtime.isSuccessResult(res)) {
+	    renderer.drawAndPrintAnswer(runtime, get(res.result, "answer"));
+	    checkUI.drawAndPrintCheckResults(runtime, get(res.result, "checks"));
+	  }
+	  else {
+	    var exception = res.exn;
+	    errorUI.drawAndPrintError(runtime, exception);
+	  }
 
-        inputUI.prompt();
+	  inputUI.prompt();
+	} catch(e) {
+	  console.error("Interactions stopped due to error: " + e);
+	  process.exit(1);
+	}
       });
     }).on('close', function() {
       process.exit(0);

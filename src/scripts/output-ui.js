@@ -382,7 +382,7 @@ define([], function() {
       this.renderValue = function(runtime, val) {
 	if(runtime.isPyretVal(val)) {
 	  if(!runtime.isNothing(val)) {
-	    return runtime.toReprJS(val, "_torepr");
+	    return runtime.toReprJS(val, runtime.ReprMethods._torepr);
 	  }
 	  else {
 	    return "";
