@@ -111,7 +111,7 @@ data CompileError:
     end
   | underscore-as-expr(l :: Loc) with:
     render-reason(self):
-      [ED.error: 
+      [ED.error:
         [ED.para: ED.text("Underscore used as an expression, which is not allowed, at ")],
         draw-and-highlight(self.l)]
     end
@@ -276,8 +276,8 @@ data CompileError:
             [ED.para:
               ED.text("It looks like you've defined the name"), ED.code(ED.text(self.id)),
               ED.text("twice, at")],
-            draw-and-highlight(self.old-loc),
-            draw-and-highlight(self.new-loc),
+            [ED.para: draw-and-highlight(self.old-loc), ED.text("and")],
+            [ED.para-nospace: draw-and-highlight(self.new-loc), ED.text(".")],
             [ED.para: ED.text("You need to pick a different name for one of them.")]]
       end
     end
@@ -428,6 +428,14 @@ default-compile-options = {
 
 runtime-types = [string-dict:
   "Number", t-just-there,
+  "Exactnum", t-just-there,
+  "Roughnum", t-just-there,
+  "NumInteger", t-just-there,
+  "NumRational", t-just-there,
+  "NumPositive", t-just-there,
+  "NumNegative", t-just-there,
+  "NumNonPositive", t-just-there,
+  "NumNonNegative", t-just-there,
   "String", t-just-there,
   "Function", t-just-there,
   "Boolean", t-just-there,
@@ -437,7 +445,7 @@ runtime-types = [string-dict:
   "RawArray", t-just-there
 ]
 
-runtime-builtins = [string-dict: 
+runtime-builtins = [string-dict:
   "test-print", v-just-there,
   "print", v-just-there,
   "display", v-just-there,
@@ -565,8 +573,8 @@ standard-builtins = compile-env(globals(runtime-builtins, runtime-types), [strin
 minimal-imports = extra-imports(empty)
 
 standard-imports = extra-imports(
-   [list: 
-      extra-import(builtin("arrays"), "arrays", [list: 
+   [list:
+      extra-import(builtin("arrays"), "arrays", [list:
           "array",
           "build-array",
           "array-from-list",
@@ -578,8 +586,9 @@ standard-imports = extra-imports(
           "array-to-list-now"
         ],
         [list: "Array"]),
-      extra-import(builtin("lists"), "lists", [list: 
+      extra-import(builtin("lists"), "lists", [list:
           "list",
+          "is-List",
           "is-empty",
           "is-link",
           "empty",
@@ -615,8 +624,9 @@ standard-imports = extra-imports(
           "index"
         ],
         [list: "List"]),
-      extra-import(builtin("option"), "option", [list: 
+      extra-import(builtin("option"), "option", [list:
           "Option",
+          "is-Option",
           "is-none",
           "is-some",
           "none",
@@ -624,11 +634,16 @@ standard-imports = extra-imports(
         ],
         [list: "Option"]),
       extra-import(builtin("error"), "error", [list: ], [list:]),
-      extra-import(builtin("sets"), "sets", [list: 
+      extra-import(builtin("sets"), "sets", [list:
           "set",
           "tree-set",
-          "list-set"
+          "list-set",
+          "empty-set",
+          "empty-list-set",
+          "empty-tree-set",
+          "list-to-set",
+          "list-to-list-set",
+          "list-to-tree-set"
         ],
         [list: "Set"])
     ])
-
