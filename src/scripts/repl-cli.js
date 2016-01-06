@@ -24,10 +24,10 @@ r(["q", "js/repl-lib", "js/runtime-anf", "compiler/compile-structs.arr", "./inpu
     var resultPromise = repl.restartInteractions("");
 
     inputUI.on("command", function(cmd) {
-      inputUI.setListen(false);
+      inputUI.setListening(false);
 
       resultPromise = resultPromise.then(function(_) {
-	return repl.run(cmd, "interactions:" + inputUI.getInteractionsNumber());
+	return repl.run(cmd, "interactions" + inputUI.getPromptNumber());
       });
 
       resultPromise.then(function(res) {

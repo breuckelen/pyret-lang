@@ -1,40 +1,71 @@
 /*global define */
 /*jslint unparam: true, node: true*/
 
+/* Modules */
 var events = require("events");
 var chalk = require("chalk");
 var keypress = require("keypress");
 var copy_paste = require("copy-paste");
 
-/*
- * Note: below are helper functions copied from https://github.com/joyent/node/blob/master/lib/readline.js
- */
-var functionKeyCodeReAnywhere = new RegExp('(?:\x1b+)(O|N|\\[|\\[\\[)(?:' + [
-  '(\\d+)(?:;(\\d+))?([~^$])',
-  '(?:M([@ #!a`])(.)(.))',
-  '(?:1;)?(\\d+)?([a-zA-Z])'
-].join('|') + ')');
+
+/* Globals */
+
+/* Function key code */
+var functionKeyCodeReAnywhere = new RegExp('(?:\x1b+)(O|N|\\[|\\[\\[)(?:' +
+      ['(\\d+)(?:;(\\d+))?([~^$])',
+      '(?:M([@ #!a`])(.)(.))',
+      '(?:1;)?(\\d+)?([a-zA-Z])'].join('|') + ')');
+
+/* Meta key code */
 var metaKeyCodeReAnywhere = /(?:\x1b)([a-zA-Z0-9])/;
 
-function codePointAt(str, index) {
+
+/* Helper functions */
+
+/*
+ * @function codePointAt
+ *  returns the character code of character in a string. From joyent on github.
+ * @param str - string to be searched.
+ * @param character - index of character in the string.
+ */
+function codePointAt(str, index)
+{
   var code = str.charCodeAt(index);
   var low;
-  if (0xd800 <= code && code <= 0xdbff) {
+
+  if (0xd800 <= code && code <= 0xdbff)
+  {
     low = str.charCodeAt(index + 1);
-    if (!isNaN(low)) {
+
+    if (!isNaN(low))
+    {
       code = 0x10000 + (code - 0xd800) * 0x400 + (low - 0xdc00);
     }
   }
+
   return code;
 }
 
-function stripVTControlCharacters(str) {
+/*
+ * @function stripVTControlCharacters
+ *  remove control characters from string.
+ * @param str - string to be stripped.
+ */
+function stripVTControlCharacters(str)
+{
   str = str.replace(new RegExp(functionKeyCodeReAnywhere.source, 'g'), '');
   return str.replace(new RegExp(metaKeyCodeReAnywhere.source, 'g'), '');
 }
 
+/*
+ * @function isFullWidthCodePoint
+ *  check if character corresponding to code point is more than one column
+ *  long.
+ * @param code - the code point of the character in question.
+ */
 function isFullWidthCodePoint(code) {
-  if (isNaN(code)) {
+  if (isNaN(code))
+  {
     return false;
   }
 
@@ -66,645 +97,740 @@ function isFullWidthCodePoint(code) {
       // Enclosed Ideographic Supplement
       0x1f200 <= code && code <= 0x1f251 ||
       // CJK Unified Ideographs Extension B .. Tertiary Ideographic Plane
-      0x20000 <= code && code <= 0x3fffd)) {
+      0x20000 <= code && code <= 0x3fffd))
+  {
     return true;
   }
+
   return false;
 }
 
-/**
-    Get the number of lines in a string
-    @param {string} str
-
-    @return {number} the number of lines in str
- **/
+/*
+ * @function numLines
+ *  returns the number of lines in a string.
+ * @param str - the string in question.
+ */
 function numLines(str) {
   var matches = str.match(/.*\n/g);
 
-  if(matches) {
+  if(matches)
+  {
       return matches.length + 1;
   }
-  else {
+  else
+  {
     return 1;
   }
 }
 
+/* Input UI functionality */
 define(["q", "./output-ui"], function(Q, outputLib) {
+  /* Instantiate modules */
   var outputUI = outputLib('default');
   var renderer = new outputUI.Renderer();
   var Indenter = outputUI.Indenter;
   var indenter = new Indenter();
 
-  /**
-      Keypress listener for the cli
-      @param {string} ch
-      @param {Object} key
-
-      @return {number} the number of lines in str
-   **/
-  function onKeypress(ch, key) {
-    if(!this.canListen()) {
-      return;
-    }
-
-    if(key && (key.name === "return" || key.name === "enter")) {
-      this.return();
-    }
-    else if(key && key.name === "tab") {
-      this.tab();
-    }
-    else if(key && key.name === "up") {
-      this.keyUp();
-    }
-    else if(key && key.name === "down") {
-      this.keyDown();
-    }
-    else if(key && key.name === "right"){
-      this.keyRight();
-    }
-    else if(key && key.name === "left") {
-      this.keyLeft();
-    }
-    else if(key && key.name === "backspace") {
-      this.backspace();
-    }
-    else if(key && key.ctrl && key.name === "c") {
-      this.keyboardInterrupt();
-    }
-    else if(key && key.ctrl && key.name === "d") {
-      this.exit();
-    }
-    else if(key && key.ctrl && key.name === "v") {
-      this.pasteToRepl();
-    }
-    else if(key && key.ctrl && key.name === "y") {
-      this.copy();
-    }
-    else if(key && key.ctrl && key.name === "a") {
-      this.goToBeg();
-    }
-    else if(key && key.ctrl && key.name === "e") {
-      this.goToEnd();
-    }
-    else {
-      if(ch) {
-	this.addStr(ch);
-      }
-    }
-  }
-
-  function InputUI(rt, input, output) {
+  /*
+   * @class InputUI
+   *  class encapsulating command line editing functionality.
+   * @param rt - repl pyret runtime.
+   * @param input - input stream.
+   * @param output - output stream.
+   */
+  function InputUI(rt, input, output)
+  {
+    /* Pyret runtime */
     this.runtime = rt;
-    this.input = input;
-    this.output = output;
-    keypress(this.input);
 
-    this.line = "";
+    /* Input stream */
+    this.input = input;
+
+    /* Output stream */
+    this.output = output;
+
+    /* Editing text */
+    this.text = "";
+
+    /* Text display variables */
+    this.lastCursorRow = 0;
+    this.lastDisplayRow = 0;
+
+    /* Editing history array */
     this.history = [{"old": "", "cur": ""}];
+
+    /* History array index */
     this.historyIndex = 0;
+
+    /* Latest updated history index */
     this.historyUpdate = 0;
 
+    /* Prompt symbol */
     this.promptSymbol = ">>";
-    this.promptString = "";
-    this.listenKeys = true;
 
+    /* Full prompt string */
+    this.promptString = "";
+
+    /* Prompt number */
+    this.promptNumber = 0;
+
+    /* Interaction enabled */
+    this.listening = true;
+
+    /* Indent array for text */
     this.indentArray = [];
+
+    /* Indent to be used */
     this.indent = "  ";
 
-    this.interactionsNumber = 0;
+    /* Current cursor position in block */
     this.cursorPosition = 0;
-    this.screenPosition = this.output.rows - 1;
-    this.lastKey = "";
-    this.deferred = Q.defer();
 
+    /* Current screen row */
+    this.screenPosition = this.output.rows - 1;
+
+    /* Last pressed key */
+    this.lastKey = "";
+
+    /* Prepare stdin for keypresses */
     this.input.setRawMode(true);
     this.input.setEncoding("utf8");
     this.input.resume();
-    this.input.on("keypress", onKeypress.bind(this));
+    keypress(this.input);
+
+    /* Set keypress event callback */
+    this.input.on("keypress", this.keypress.bind(this));
   }
 
-  /*Prompt*/
-  InputUI.prototype.prompt = function() {
-    if(this.indentArray.length === 0) {
-      this.interactionsNumber += 1;
+  /*
+  * @function prompt
+  *   display the prompt, and update appropriate variables.
+  */
+  InputUI.prototype.prompt = function()
+  {
+    /* Disable interaction while displaying prompt */
+    this.setListening(false);
+
+    /* If not end of block, increase prompt number */
+    if(this.indentArray.length === 0)
+    {
+      this.promptNumber += 1;
     }
 
-    this.setListen(false);
-    this.resetLine();
-    this.promptString = this.interactionsNumber
-      + "::1 "
-      + this.promptSymbol + " ";
+    /* Clear text being edited */
+    this.resetText();
+
+    /* Construct prompt string */
+    this.promptString = "> ";
+
+    /* Write newline */
     this.output.write("\n");
-    this.refreshLine();
 
-    this.setListen(true);
+    /* Refresh cursor and text being edited */
+    this.refreshText(false);
+
+    /* Enable interaction again */
+    this.setListening(true);
   };
 
-  InputUI.prototype.canListen = function() {
-    return this.listenKeys;
+  /*
+  * @function isListening
+  *   checks if listening is enabled.
+  */
+  InputUI.prototype.isListening = function()
+  {
+    return this.listening;
   };
 
-  InputUI.prototype.setListen = function(bool) {
-    this.listenKeys = !!bool;
+  /*
+  * @function setListening
+  *   enables or disables keypress listening.
+  * @param bool - the boolean value used to enable or disable listening.
+  */
+  InputUI.prototype.setListening = function(bool)
+  {
+    this.listening = !!bool;
   };
 
-  /*Getters*/
-  InputUI.prototype.getInteractionsNumber = function() {
-    return this.interactionsNumber;
+  /*
+  * @function getPromptNumber
+  *   get the prompt number.
+  */
+  InputUI.prototype.getPromptNumber = function()
+  {
+    return this.promptNumber;
   };
 
-  InputUI.prototype.getLine = function(offset, ignoreNl) {
-    var matches = this.line.match(/.*\n|.+$/g);
-    var lineIndex = numLines(this.line.slice(0, this.cursorPosition)) - 1
-      + offset;
+  /*
+  * @function getLine
+  *   returns line at the character offset from the cursor.
+  * @param offset - the offset past the cursor position.
+  * @param ignoreNewline - whether or not to ignore newlines at the end of the
+  *   string.
+  */
+  InputUI.prototype.getLine = function(offset, ignoreNewline)
+  {
+    /* Get all lines */
+    var matches = this.text.match(/.*\n|.+$/g);
 
-    if(matches) {
-      lineIndex = lineIndex < 0 ? 0 : lineIndex;
-      lineIndex = lineIndex > matches.length - 1 ? matches.length - 1 : lineIndex;
+    /* Get line number within text block */
+    var lineIndex = numLines(this.text.slice(0, this.cursorPosition)) - 1 +
+      offset;
 
-      var lastMatch = matches[matches.length - 1];
+    if(matches)
+    {
+      /* Bound line index */
+      lineIndex = Math.max(Math.min(lineIndex, matches.length - 1), 0);
 
+      /* If last line, and newline at the end */
       if(lineIndex === matches.length - 1 &&
-	  lastMatch.charAt(lastMatch.length - 1) === "\n" &&
-	  !ignoreNl) {
+	  this.text.charAt(this.text.length - 1) === "\n" &&
+	  !ignoreNewline)
+      {
 	return "";
       }
-      else {
+      else
+      {
+	/* Return match at line index */
 	return matches[lineIndex];
       }
     }
-    else {
-      return this.line;
+    else
+    {
+      /* Return entire block if no matches */
+      return this.text;
     }
   };
 
-  InputUI.prototype.getLinesBefore = function(str, startRow, ignoreNl) {
+  /*
+  * @function getLinesBefore
+  *   get lines up to the given line index.
+  * @param str - the string to get lines from.
+  * @param endLineIndex - the index to get lines up to.
+  * @param ignoreNewline - whether or not to ignore newlines at the end of the
+  *   string.
+  */
+  InputUI.prototype.getLinesBefore = function(str, endLineIndex, ignoreNewline)
+  {
+    /* Get all lines */
     var matches = str.match(/.*\n|.+$/g);
 
-    if(matches) {
-      startRow = startRow < 0 ? 0 : startRow;
-      startRow = startRow > matches.length ? matches.length : startRow;
+    if(matches)
+    {
+      /* Bound end line */
+      endLineIndex = Math.max(Math.min(endLineIndex, matches.length), 0);
 
-      var lastMatch = matches[matches.length - 1];
-
-      if(startRow === matches.length
-	  && lastMatch.charAt(lastMatch.length - 1) === "\n"
-	  && !ignoreNl) {
+      /* Return all lines */
+      if(endLineIndex === matches.length &&
+	  str.charAt(str.length - 1) === "\n" && !ignoreNewline)
+      {
 	return matches;
       }
-      else {
-	var newMatches = matches;
-	var curMatch = newMatches.shift();
-	var row = startRow;
-	matches = [];
+      else
+      {
+	/* Get lines before index, taking into account wrapped lines */
+	var lines = [];
+	var curMatch = matches.shift();
+	var lineIndex = endLineIndex;
 
-	while(curMatch && row > 0) {
-	  matches.push(curMatch);
+	/* Loop over lines */
+	while(curMatch && lineIndex > 0) {
+	  lines.push(curMatch);
 
-	  if(curMatch.charAt(curMatch.length - 1) === "\n") {
-	    row -= (numLines(curMatch) - 1);
+	  /* Decrement line index by number of lines in match */
+	  if(curMatch.charAt(curMatch.length - 1) === "\n")
+	  {
+	    lineIndex -= (numLines(curMatch) - 1);
 	  }
-	  else {
-	    row -= numLines(curMatch);
+	  else
+	  {
+	    lineIndex -= numLines(curMatch);
 	  }
 
-	  curMatch = newMatches.shift();
+	  /* Get next match */
+	  curMatch = matches.shift();
 	}
 
-	if(row < 0) {
-	  matches = matches.slice(0, matches.length - 1);
+	/* Remove last line if necessary */
+	if(lineIndex < 0)
+	{
+	  lines = lines.slice(0, lines.length - 1);
 	}
 
-	return matches;
+	/* Return lines */
+	return lines;
       }
     }
-    else {
+    else
+    {
+      /* Return no lines if no matches */
       return [];
     }
   };
 
-  InputUI.prototype.getLinesAfter = function(str, startRow, ignoreNl) {
-    var matches = str.match(/.*\n|.+$/g);
+  /*
+  * @function getLineUntilCursor
+  *   get the current line until the cursor position.
+  */
+  InputUI.prototype.getLineUntilCursor = function()
+  {
+    /* Get all lines */
+    var matches = this.text.match(/.*\n|.+$/g);
 
-    if(matches) {
-      startRow = startRow < 0 ? 0 : startRow;
-      startRow = startRow > matches.length - 1 ? matches.length - 1 : startRow;
-
-      var lastMatch = matches[matches.length - 1];
-
-      if(startRow === matches.length - 1
-	  && lastMatch.charAt(lastMatch.length - 1) === "\n"
-	  && !ignoreNl) {
-	return [];
-      }
-      else {
-	var newMatches = matches.slice(startRow, matches.length);
-	var curMatch = newMatches.shift();
-	var row = matches.length - startRow;
-	matches = [];
-
-	while(curMatch && row > 0) {
-	  matches.push(curMatch);
-
-	  if(curMatch.charAt(curMatch.length - 1) === "\n") {
-	    row -= (numLines(curMatch) - 1);
-	  }
-	  else {
-	    row -= numLines(curMatch);
-	  }
-
-	  curMatch = newMatches.shift();
-	}
-
-	if(row < 0) {
-	  matches = matches.slice(0, matches.length - 1);
-	}
-
-	return matches;
-      }
-    }
-    else {
-      return [];
-    }
-  };
-
-  InputUI.prototype.getLineUntilCursor = function() {
-    var matches = this.line.match(/.*\n|.+$/g);
+    /* Save cursor position */
     var cursorPos = this.cursorPosition;
 
-    if(matches && matches.length > 1) {
+    if(matches && matches.length > 1)
+    {
+      /* Get current line */
       var curMatch = matches.shift();
       var lastMatch = curMatch;
 
-      while(lastMatch && cursorPos > lastMatch.length) {
+      /* Loop over matches */
+      while(lastMatch && cursorPos > lastMatch.length)
+      {
 	cursorPos -= curMatch.length;
 	lastMatch = matches.shift();
 	curMatch = lastMatch || curMatch;
       }
 
+      /* Return line until cursor */
       return curMatch.slice(0, cursorPos);
     }
-    else {
-      return this.line.slice(0, cursorPos);
+    else
+    {
+      /* Return text until cursor */
+      return this.text.slice(0, cursorPos);
     }
   };
 
-  InputUI.prototype.getCursorPos = function() {
-    return this.getDisplayPos(
-	this.promptString
-	+ this.prettify(this.line.slice(0, this.cursorPosition)),
+  /*
+  * @function getCursorDisplay
+  *   get screen cursor position.
+  */
+  InputUI.prototype.getCursorDisplay = function()
+  {
+    return this.getDisplay(
+	this.promptString +
+	this.highlightText(this.text.slice(0, this.cursorPosition)),
 	this.output.columns);
   };
 
-  InputUI.prototype.moveCursor = function(offset) {
-    var diff = 0;
+  /*
+  * @function moveCursor
+  *   move the cursor using the offset.
+  * @param offset
+  *   the offset to mvoe the cursor.
+  */
+  InputUI.prototype.moveCursor = function(offset)
+  {
+    /* Usable width of the screen */
     var screenWidth = this.output.columns - this.promptString.length;
 
-    if(offset < 0) {
-      diff -= this.getDisplayPos(
-	  this.line.slice(this.cursorPosition + offset,
+    /* Screen rows to move cursor */
+    var diff;
+
+    if(offset < 0)
+    {
+      /* Get negative diff */
+      diff = -this.getDisplay(
+	  this.text.slice(this.cursorPosition + offset,
 	    this.cursorPosition), screenWidth).rows;
     }
-    else {
-      var cursorPos = this.getDisplayPos(this.line.slice(0, this.cursorPosition),
-	  screenWidth);
+    else
+    {
+      /* Get positive diff */
+      var cursorPos = this.getDisplay(this.text.slice(0,
+	    this.cursorPosition), screenWidth);
 
-      diff += this.getDisplayPos(
-	  this.line.slice(this.cursorPosition - cursorPos.cols,
+      diff = this.getDisplay(
+	  this.text.slice(this.cursorPosition - cursorPos.cols,
 	    this.cursorPosition + offset), screenWidth).rows;
     }
 
+    /* Update screen and cursor positions */
     this.screenPosition += diff;
     this.cursorPosition += offset;
   };
 
   /*
-  InputUI.prototype.cutString = function(str, startRow, startCol, endRow, endCol, fun) {
-    var offset = 0;
-    var col = this.output.columns;
-    var row = 0;
-    var code, start, i;
-    str = stripVTControlCharacters(str);
-
-    for (i = 0; i < str.length; i++) {
-      if(row >= startRow && offset === startCol) {
-	start = i;
-      }
-
-      if(row > endRow || (row === endRow && offset === endCol)) {
-	break;
-      }
-
-      code = codePointAt(str, i);
-
-      if (code >= 0x10000) {
-	i++;
-      }
-
-      if (code === 0x0a) {
-	//Note(ben) accounts for lines within multiline strings that are longer
-	//than the width of the terminal
-	row += 1 + (offset % col === 0 && offset > 0 ? (offset / col) - 1
-	 : (offset - (offset % col)) / col);
-	offset = 0;
-	continue;
-      }
-
-      if (isFullWidthCodePoint(code)) {
-	//Note(ben) full width code points will start on the next line if 1 away
-	//from the end of the current line
-	if ((offset + 1) % col === 0) {
-	  offset++;
-	}
-
-	offset += 2;
-      }
-      else {
-	offset++;
-      }
-    }
-
-    return fun(str.substring(start, i), row, offset);
-  };
+  * @function getDisplay
+  *   get width and height in rows and columns of the string.
+  * @param str - the string in question.
+  * @param screenWidth - width of the screen.
   */
-
-  InputUI.prototype.getDisplayPos = function(str, col) {
+  InputUI.prototype.getDisplay = function(str, screenWidth)
+  {
     var offset = 0;
     var row = 0;
     var code, i;
+
+    /* Strip control characters */
     str = stripVTControlCharacters(str);
 
-    for (i = 0; i < str.length; i++) {
+    /* Iterate over string */
+    for (i = 0; i < str.length; i++)
+    {
       code = codePointAt(str, i);
 
-      if (code >= 0x10000) {
+      /* Continue if code point greater than 0x10000 */
+      if (code >= 0x10000)
+      {
 	i++;
       }
 
-      if (code === 0x0a) {
-	//Note(ben) accounts for lines within multiline strings that are longer
-	//than the width of the terminal
-	row += 1 + (offset % col === 0 && offset > 0 ? (offset / col) - 1
-	 : (offset - (offset % col)) / col);
+      /* Accounts for multiline strings */
+      if (code === 0x0a)
+      {
+	row += 1 + ((offset % screenWidth === 0 && offset > 0) ?
+	    ((offset / screenWidth) - 1) :
+	    (offset - (offset % screenWidth)) / screenWidth);
 	offset = 0;
 	continue;
       }
 
-      if (isFullWidthCodePoint(code)) {
-	//Note(ben) full width code points will start on the next line if 1 away
-	//from the end of the current line
-	if ((offset + 1) % col === 0) {
+      /* Accounts for full width code points */
+      if (isFullWidthCodePoint(code))
+      {
+	if ((offset + 1) % screenWidth === 0)
+	{
 	  offset++;
 	}
 
 	offset += 2;
       }
-      else {
+      else
+      {
 	offset++;
       }
     }
 
-    var cols = offset % col;
-    var lineLength = offset - cols;
-    var rows = row + lineLength / col;
+    /* Construct rows and columns */
+    var cols = offset % screenWidth;
+    var rows = row + (offset - cols) / screenWidth;
+
+    /* Return object containing row and columns */
     return {cols: cols, rows: rows};
   };
 
-  /*Reset functions*/
-  InputUI.prototype.resetLine = function() {
-    this.line = "";
+  /*
+  * @function resetText
+  *   reset text and related variables.
+  */
+  InputUI.prototype.resetText = function()
+  {
+    this.text = "";
     this.cursorPosition = 0;
     this.screenPosition = this.output.rows - 1;
-    this.rowOffset = 0;
+    this.lastCursorRow = 0;
+    this.lastDisplayRow = 0;
   };
 
-  InputUI.prototype.resetNest = function(cmd) {
-    this.indentArray = [];
-
-    this.output.write("\n");
-    this.emit('command', cmd);
-  };
-
-  /*Modifying state functions*/
-  InputUI.prototype.addStr = function(str) {
-    if(this.cursorPosition < this.line.length) {
-      this.line = this.line.substring(0, this.cursorPosition)
-	+ str
-	+ this.line.substring(this.cursorPosition, this.line.length);
+  /*
+  * @function addString
+  *   insert string into text.
+  * @param str - the string to insert.
+  */
+  InputUI.prototype.addString = function(str)
+  {
+    /* Insert string */
+    if(this.cursorPosition < this.text.length)
+    {
+      this.text = this.text.substring(0, this.cursorPosition) + str +
+	this.text.substring(this.cursorPosition, this.text.length);
     }
-    else {
-      this.line += str;
+    /* Append string */
+    else
+    {
+      this.text += str;
     }
 
+    /* Reset cursor position */
     this.cursorPosition += str.length;
 
-    if(str === " ") {
-      this.refreshLine();
+    /* Refresh text and add index */
+    if(str === " ")
+    {
+      this.refreshText(false);
     }
-    else {
+    else
+    {
       this.addIndent();
     }
 
-    this.syncHistory();
+    /* Sync history */
+    this.updateHistory();
   };
 
-  InputUI.prototype.addIndent = function() {
-    this.syncIndentArray(0);
+  /*
+  * @function addIndent
+  *   add indent to current line.
+  */
+  InputUI.prototype.addIndent = function()
+  {
+    /* Update indent array for lines up to cursorPosition */
+    this.updateIndentArray(0);
 
+    /* Get current line */
     var curLine = this.getLine(0, false);
+
+    /* Get indent */
     var indent = indenter.getIndent(curLine, this.indentArray, this.indent);
+
+    /* Add indent to text */
     var lineNoIndent = curLine.replace(/^([^\S\n]+)/, "");
     var lineIndent = indent + lineNoIndent;
+    this.text = this.replaceLine(0, lineIndent);
+
+    /* Move cursor */
+    var oldCursorPos = this.getCursorDisplay();
     var diff = lineIndent.length - curLine.length;
-
-    var oldCursorPos = this.getCursorPos();
-    this.line = this.replaceLine(0, lineIndent);
     this.moveCursor(diff);
-    var newCursorPos = this.getCursorPos();
 
-    if(oldCursorPos.rows !== newCursorPos.rows) {
+    /* Correct if row changed */
+    if(oldCursorPos.rows !== this.getCursorDisplay().rows)
+    {
       this.moveCursor(-diff);
       this.moveCursor(-(oldCursorPos.cols - this.promptString.length));
     }
 
-    this.refreshLine();
+    /* Refresh text */
+    this.refreshText(false);
   };
 
-  InputUI.prototype.addHistory = function() {
+  /*
+  * @function addHistory
+  *   add history entry, after the current command has been run. Revert old
+  *   entries if they have been modified.
+  */
+  InputUI.prototype.addHistory = function()
+  {
     var spaceRegex = /^\s*$/g;
 
-    if(this.historyUpdate >= 0) {
+    /* Revert old history entries */
+    if(this.historyUpdate >= 0)
+    {
       this.history = this.history.slice(0, this.historyUpdate).map(function(l) {
 	return {"old": l.old, "cur": l.old};
       }).concat(this.history.slice(this.historyUpdate, this.history.length));
     }
 
-    if(!(this.line.match(spaceRegex) || (this.history.length > 1 &&
-	    this.history[1].old === this.line))) {
+    /* Add new entry if not empty or a duplicate */
+    if(!(this.text.match(spaceRegex) || (this.history.length > 1 &&
+	    this.history[1].old === this.text)))
+    {
       this.history[0] = {
-	"old": this.line,
-	"cur": this.line};
+	"old": this.text,
+	"cur": this.text};
       this.history.unshift({"old": "", "cur": ""});
     }
 
+    /* Reset history tracking variables */
     this.historyIndex = 0;
     this.historyUpdate = 0;
   };
 
-  InputUI.prototype.syncHistory = function() {
-    this.history[this.historyIndex] = {
-      "old": this.history[this.historyIndex].old,
-      "cur": this.line};
+  /*
+  * @function updateHistory
+  *   update entry at current history index.
+  */
+  InputUI.prototype.updateHistory = function()
+  {
+    /* Update entry at current history index */
+    this.history[this.historyIndex].cur = this.text;
 
+    /* Set the furthest updated location in history */
     this.historyUpdate = Math.max(this.historyIndex + 1, this.historyUpdate);
   };
 
-  InputUI.prototype.syncIndentArray = function(offset) {
-    var rows = numLines(this.line.slice(0, this.cursorPosition)) - 1;
-    var matches = this.getLinesBefore(this.line, rows + offset);
+  /*
+  * @function updateIndentArray
+  *   update indent array, containing indent levels.
+  */
+  InputUI.prototype.updateIndentArray = function(offset) {
+    /* Get lines before cursor position */
+    var lines = this.getLinesBefore(this.text,
+	numLines(this.text.slice(0, this.cursorPosition)) - 1 + offset);
+
+    /* Reset indent array */
     this.indentArray = [];
 
-    if(matches) {
-      matches.forEach(function(cmd) {
-	cmd = cmd.trim();
-	this.indentArray = indenter.indent(cmd, this.indentArray);
-      }, this);
-    }
+    /* Iterate over lines, and update indents */
+    lines.forEach(function(cmd) {
+      cmd = cmd.trim();
+      this.indentArray = indenter.indent(cmd, this.indentArray);
+    }, this);
   };
 
-  /*Display functions*/
-  //TODO: keep this the same, as opposed to other Line functions, add argument for string
-  InputUI.prototype.replaceLine = function(offset, str) {
-    var matches = this.line.match(/.*\n|.+$/g);
-    var lineIndex = numLines(this.line.slice(0, this.cursorPosition)) - 1
-      + offset;
+  /*
+  * @function replaceLine
+  *   replace line offset rows from the current line.
+  */
+  InputUI.prototype.replaceLine = function(offset, str)
+  {
+    /* Get lines */
+    var matches = this.text.match(/.*\n|.+$/g);
 
-    if(matches) {
-      lineIndex = lineIndex < 0 ? 0 : lineIndex;
-      lineIndex = lineIndex > matches.length - 1 ? matches.length - 1 : lineIndex;
+    /* Get current line index */
+    var lineIndex = numLines(this.text.slice(0, this.cursorPosition)) - 1 +
+      offset;
 
-      var lastMatch = matches[matches.length - 1];
+    if(matches)
+    {
+      /* Bound line index */
+      lineIndex = Math.max(Math.min(lineIndex, matches.length - 1), 0);
 
-      if(lineIndex === matches.length - 1
-	  && lastMatch.charAt(lastMatch.length - 1) === "\n") {
+      /* Replace current line with str */
+      if(lineIndex === matches.length - 1 &&
+	  this.text.charAt(this.text.length - 1) === "\n")
+      {
 	matches.push(str);
       }
-      else {
+      else
+      {
 	matches[lineIndex] = str;
       }
 
+      /* Return updated text */
       return matches.join("");
     }
-    else {
+    else
+    {
       return "";
     }
   };
 
-  InputUI.prototype.prettify = function(line) {
-    var matches = line.match(/.*\n|.+$/g);
+  /*
+  * @function highlightText
+  *   highlight text.
+  */
+  InputUI.prototype.highlightText = function(text)
+  {
+    /* Get lines */
+    var matches = text.match(/.*\n|.+$/g);
 
-    if(matches) {
-      var lastMatch = matches[matches.length - 1];
-      var s = renderer.highlightLine(matches.shift());
-      var lineNumber = 2;
-      var startLine = lineNumber++
-	+ "  "
-	+ new Array(this.interactionsNumber.toString().length + 1).join(" ")
-	+ "... ";
+    if(matches)
+    {
+      /* Prettified text */
+      var htext = renderer.highlightLine(matches.shift());
 
-      matches.forEach(function(m) {
-	s += startLine + renderer.highlightLine(m);
-	startLine = lineNumber
-	  + new Array(3 - (lineNumber++).toString().length + 1).join(" ")
-	  + new Array(this.interactionsNumber.toString().length + 1).join(" ")
-	  + "... ";
+      /* Highlight lines */
+      matches.forEach(function(m)
+      {
+	htext += "  " + renderer.highlightLine(m);
       }, this);
 
-      if(lastMatch.charAt(lastMatch.length - 1) === "\n") {
-	s += startLine;
+      /* Add line number for empty line */
+      if(text.charAt(text.length - 1) === "\n")
+      {
+	htext += "  ";
       }
 
-      return s;
+      return htext;
     }
-    else {
-      return line;
+    else
+    {
+      return text;
     }
   };
 
-  InputUI.prototype.refreshLine = function(gotoEol) {
-    // line length
-    var prettified = this.prettify(this.line);
-    var line = this.promptString + prettified;
-    var dispPos = this.getDisplayPos(line, this.output.columns);
+  /*
+  * @function refreshText
+  *   
+  */
+  InputUI.prototype.refreshText = function(jumpEOL, exit)
+  {
+    /* Get highlighted text */
+    var displayText = this.highlightText(this.text);
+    displayText = this.promptString + displayText;
 
-    // cursor position
-    if(gotoEol || this.cursorPosition > this.line.length) {
-      this.cursorPosition = this.line.length;
-      this.screenPosition = this.output.rows - 1;
+    /* Bound screen position */
+    this.screenPosition = Math.max(Math.min(this.screenPosition,
+	  this.output.rows - 1), 0);
+
+    /* Get text display position */
+    var displayPos = this.getDisplay(displayText, this.output.columns);
+
+    /* Bound cursor position, and set screen position */
+    this.cursorPosition = Math.max(Math.min(this.cursorPosition,
+	  this.text.length), 0);
+
+    /* If jumpEOL is true */
+    if(jumpEOL)
+    {
+      this.cursorPosition = this.text.length;
+      this.lastDisplayRow = displayPos.rows;
     }
-    else if(this.cursorPosition < 0) {
-      this.cursorPosition = 0;
-    }
 
-    var cursorPos = this.getCursorPos();
+    /* Get display position of text up to cursor */
+    var cursorDisplayPos = this.getCursorDisplay();
 
-    if(this.screenPosition < 0) {
-      this.screenPosition = 0;
-    }
-    else if(this.screenPosition > this.output.rows - 1) {
-      this.screenPosition = this.output.rows - 1;
-    }
-
-
-    if(dispPos.rows >= this.output.rows) {
-      var startRow = cursorPos.rows - this.screenPosition;
-      var endRow = this.output.rows;
-      line = this.getLinesAfter(line, startRow, true).join("");
-      line = this.getLinesBefore(line, endRow, true).join("");
-
-      if(line.charAt(line.length - 1) === "\n") {
-	line = line.slice(0, line.length - 1);
+    /* Update display position, cursor display, and display text if display
+     * position exceeds size of the output window */
+    /* TODO: deal with lines greater than length of the screen */
+    if(displayPos.rows >= this.output.rows)
+    {
+      /* Update last display row if cursor moves past currently displayed text */
+      if(this.lastDisplayRow - cursorDisplayPos.rows >= this.output.rows)
+      {
+	this.lastDisplayRow -= 1;
+      }
+      else if(cursorDisplayPos.rows > this.lastDisplayRow)
+      {
+	this.lastDisplayRow += 1;
       }
 
-      cursorPos.rows = this.screenPosition;
-      dispPos.rows = this.output.rows - 1;
+      /* Cut display text at the end of the screen */
+      var displayLines = this.getLinesBefore(displayText, this.lastDisplayRow + 1,
+	  true);
 
-      this.output.cursorTo(0, 0);
+      displayText = displayLines.join("");
+
+      /* Do not newline at end of display text */
+      if(displayText.charAt(displayText.length - 1) == "\n")
+      {
+	displayText = displayText.slice(0, displayText.length - 1);
+      }
+    }
+    else
+    {
+      /* Set last display row */
+      this.lastDisplayRow = displayPos.rows;
     }
 
-    // first move to the bottom of the current line, based on cursor pos
-    var rowOffset = this.rowOffset || 0;
-
-    if (rowOffset > 0) {
-      this.output.moveCursor(0, -rowOffset);
+    /* Move cursor to position to clear from. Use previous cursor offset from
+     * the start of the text  */
+    if (this.lastCursorRow > 0) {
+      this.output.moveCursor(0, -this.lastCursorRow);
     }
 
-    this.rowOffset = cursorPos.rows;
+    /* Set row offset */
+    this.lastCursorRow = cursorDisplayPos.rows;
 
-    // Cursor to left edge.
+    /* Move cursor to left edge of the screen */
     this.output.cursorTo(0);
-    // erase data
+
+    /* Clear the screen below the cursor */
     this.output.clearScreenDown();
 
-    // Write the prompt and the current buffer content.
-    this.output.write(line);
+    /* Write the display text */
+    this.output.write(displayText);
 
-    // Force terminal to allocate a new line
-    if (dispPos.cols === 0) {
+    /* Force terminal to allocate new line if last is empty */
+    if (displayPos.cols === 0) {
       this.output.write(' ');
     }
 
-    // Move cursor to original position.
-    this.output.cursorTo(cursorPos.cols);
+    /* Move cursor to original column */
+    this.output.cursorTo(cursorDisplayPos.cols);
 
-    var diff = dispPos.rows - cursorPos.rows;
-
-    if (diff > 0) {
-      this.output.moveCursor(0, -diff);
-    }
+    /* Move cursor to original row */
+    this.output.moveCursor(0, cursorDisplayPos.rows - this.lastDisplayRow);
   };
 
-  /*Keypress and related functions*/
+  /**
+      @function annotation
+   **/
   InputUI.prototype.doublePress = function(key, success, failure, timeout) {
     if(this.lastKey === key) {
       this.lastKey = "";
@@ -721,37 +847,47 @@ define(["q", "./output-ui"], function(Q, outputLib) {
     }
   };
 
-  InputUI.prototype.return = function(cmd) {
-    this.doublePress("enter", function() {
-      this.addStr("\n");
-    }.bind(this), function() {
-	if(this.canRun()) {
-	  this.run();
-	}
-	else {
-	  this.addStr("\n");
-	}
-    }.bind(this), 200);
+  /**
+      @function annotation
+   **/
+  /* TODO: add shift enter, and remove canRun entirely */
+  /* TODO: remove specialized up and down keypresses */
+  InputUI.prototype.enter = function(cmd) {
+      if(this.canRun()) {
+	this.run();
+      }
+      else {
+	this.addString("\n");
+      }
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.canRun = function() {
     var curLine = this.getLine(0, false);
-    var displayLines = numLines(this.line);
-    var cursorLines = numLines(this.line.slice(0, this.cursorPosition));
+    var displayLines = numLines(this.text);
+    var cursorLines = numLines(this.text.slice(0, this.cursorPosition));
 
-    this.syncIndentArray(1);
+    this.updateIndentArray(1);
 
-    return (this.indentArray.length === 0 && displayLines === 1)
-      || (curLine === "" && cursorLines === displayLines);
+    return (this.indentArray.length === 0 && displayLines === 1) ||
+      (curLine === "" && cursorLines === displayLines);
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.run = function() {
     this.addHistory();
-    this.refreshLine(true);
+    this.refreshText(true);
     this.output.write("\n");
-    this.emit('command', this.line);
+    this.emit('command', this.text);
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.tab = function() {
     this.doublePress("tab", function() {
       this.indentAll();
@@ -760,6 +896,9 @@ define(["q", "./output-ui"], function(Q, outputLib) {
     }.bind(this), 200);
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.indentAll = function() {
       var oldCursorPos = this.cursorPosition;
       var lastCursorPos = -1;
@@ -772,131 +911,142 @@ define(["q", "./output-ui"], function(Q, outputLib) {
       }
 
       this.cursorPosition = oldCursorPos;
-      this.refreshLine();
+      this.refreshText(false);
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.historyPrev = function() {
     if(this.historyIndex < this.history.length - 1) {
       this.historyIndex += 1;
-      this.line = this.history[this.historyIndex].cur;
-      this.refreshLine(true);
+      this.text = this.history[this.historyIndex].cur;
+      /* TODO: reset last display row flag */
+      this.refreshText(true, true);
     }
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.historyNext = function() {
     if(this.historyIndex > 0) {
       this.historyIndex -= 1;
-      this.line = this.history[this.historyIndex].cur;
-      this.refreshLine(true);
+      this.text = this.history[this.historyIndex].cur;
+      /* TODO: reset last display row flag */
+      this.refreshText(true);
     }
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.keyUpBase = function(noHistory) {
-    if(numLines(this.line.slice(0, this.cursorPosition)) > 1) {
+    if(numLines(this.text.slice(0, this.cursorPosition)) > 1) {
       var curLineSlice = this.getLineUntilCursor();
       var nextLine = this.getLine(-1, true);
 
-      var oldCursorLines = numLines(this.line.slice(0, this.cursorPosition));
+      var oldCursorLines = numLines(this.text.slice(0, this.cursorPosition));
       this.moveCursor(-nextLine.length);
-      var newCursorLines = numLines(this.line.slice(0, this.cursorPosition));
+      var newCursorLines = numLines(this.text.slice(0, this.cursorPosition));
 
       if(newCursorLines !== oldCursorLines - 1 && oldCursorLines > 1) {
 	this.moveCursor(nextLine.length - (curLineSlice.length + 1));
       }
 
-      this.refreshLine();
+      this.refreshText(false);
     }
     else if(!noHistory) {
       this.historyPrev();
     }
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.keyDownBase = function(noHistory) {
-    if(numLines(this.line.slice(this.cursorPosition, this.line.length)) > 1) {
+    if(numLines(this.text.slice(this.cursorPosition, this.text.length)) > 1) {
       var curLine = this.getLine(0, true);
       var curLineSlice = this.getLineUntilCursor();
       var nextLine = this.getLine(1, true);
 
-      var oldCursorLines = numLines(this.line.slice(0, this.cursorPosition));
+      var oldCursorLines = numLines(this.text.slice(0, this.cursorPosition));
       this.moveCursor(curLine.length);
-      var newCursorLines = numLines(this.line.slice(0, this.cursorPosition));
+      var newCursorLines = numLines(this.text.slice(0, this.cursorPosition));
 
       if(newCursorLines !== oldCursorLines + 1) {
 	this.moveCursor(-curLineSlice.length);
 	this.moveCursor(nextLine.length - 1);
       }
 
-      this.refreshLine();
+      this.refreshText(false);
     }
     else if(!noHistory) {
       this.historyNext();
     }
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.keyUp = function() {
-    if(this.historyIndex < this.history.length - 1 &&
-	numLines(this.line) > 1 &&
-	numLines(this.line.slice(0, this.cursorPosition)) === 1) {
-
-      this.doublePress("up", function() {
-	this.keyUpBase();
-      }.bind(this), function() {}, 250)
-    }
-    else {
-      this.keyUpBase();
-    }
+    this.keyUpBase();
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.keyDown = function() {
-    if(this.historyIndex > 0 &&
-	numLines(this.line) > 1 &&
-	numLines(this.line.slice(0, this.cursorPosition))
-	=== numLines(this.line)) {
-
-      this.doublePress("down", function() {
-	this.keyDownBase();
-      }.bind(this), function() {}, 250)
-    }
-    else {
-      this.keyDownBase();
-    }
+    this.keyDownBase();
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.keyRight = function() {
-    if(this.cursorPosition < this.line.length) {
+    if(this.cursorPosition < this.text.length) {
       this.moveCursor(1);
     }
 
-    this.refreshLine();
+    this.refreshText(false);
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.keyLeft = function() {
     if(this.cursorPosition > 0) {
       this.moveCursor(-1);
     }
 
-    this.refreshLine();
+    this.refreshText(false);
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.backspace = function() {
     if(this.cursorPosition > 0) {
-      this.line = this.line.substring(0, this.cursorPosition - 1)
-	+ this.line.substring(this.cursorPosition, this.line.length);
+      this.text = this.text.substring(0, this.cursorPosition - 1) +
+	this.text.substring(this.cursorPosition, this.text.length);
 
       this.moveCursor(-1);
-      this.refreshLine();
-      this.syncHistory();
+      this.refreshText(false);
+      this.updateHistory();
     }
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.keyboardInterrupt = function() {
-    this.refreshLine(true);
+    this.refreshText(true);
 
-    if(this.indentArray.length > 0 || this.line !== "") {
+    if(this.indentArray.length > 0 || this.text !== "") {
       this.indentArray = [];
 
-      this.syncHistory();
-      this.resetLine();
+      this.updateHistory();
+      this.resetText();
       this.prompt();
     }
     else {
@@ -904,17 +1054,26 @@ define(["q", "./output-ui"], function(Q, outputLib) {
     }
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.exit = function() {
     process.exit();
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.pasteToRepl = function() {
     copy_paste.paste(function(_, text) {
       text = text.replace(/\r/g, "\n");
-      this.addStr(text);
+      this.addString(text);
     }.bind(this));
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.copy = function() {
     this.doublePress("ctrl-y", function() {
       this.copyBlock();
@@ -923,24 +1082,36 @@ define(["q", "./output-ui"], function(Q, outputLib) {
     }.bind(this), 300);
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.copyBlock = function() {
-    copy_paste.copy(this.line);
+    copy_paste.copy(this.text);
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.copyLine = function() {
     copy_paste.copy(this.getLine(0, true));
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.goToBeg = function() {
     var lineUntilCursor = this.getLineUntilCursor();
 
     if (lineUntilCursor.length === 0 || lineUntilCursor.charAt(lineUntilCursor.length - 1) !== "\n") {
       this.moveCursor(-lineUntilCursor.length);
-      this.refreshLine();
-      this.syncHistory();
+      this.refreshText(false);
+      this.updateHistory();
     }
   };
 
+  /**
+      @function annotation
+   **/
   InputUI.prototype.goToEnd = function() {
     var lineUntilCursor = this.getLineUntilCursor();
     var curLine;
@@ -953,14 +1124,86 @@ define(["q", "./output-ui"], function(Q, outputLib) {
     curLine = this.getLine(0, true);
     this.moveCursor(-1);
     this.moveCursor(curLine.length > 0 ? curLine.length - 1 : 0);
-    this.refreshLine();
-    this.syncHistory();
+    this.refreshText(false);
+    this.updateHistory();
   };
 
+  InputUI.prototype.keypress = function(ch, key)
+  {
+    if(!this.isListening())
+    {
+      return;
+    }
+
+    if(key && (key.name === "return" || key.name === "enter"))
+    {
+      this.enter();
+    }
+    else if(key && key.name === "tab")
+    {
+      this.tab();
+    }
+    else if(key && key.name === "up")
+    {
+      this.keyUp();
+    }
+    else if(key && key.name === "down")
+    {
+      this.keyDown();
+    }
+    else if(key && key.name === "right")
+    {
+      this.keyRight();
+    }
+    else if(key && key.name === "left")
+    {
+      this.keyLeft();
+    }
+    else if(key && key.name === "backspace")
+    {
+      this.backspace();
+    }
+    else if(key && key.ctrl && key.name === "c")
+    {
+      this.keyboardInterrupt();
+    }
+    else if(key && key.ctrl && key.name === "d")
+    {
+      this.exit();
+    }
+    else if(key && key.ctrl && key.name === "v")
+    {
+      this.pasteToRepl();
+    }
+    else if(key && key.ctrl && key.name === "y")
+    {
+      this.copy();
+    }
+    else if(key && key.ctrl && key.name === "a")
+    {
+      this.goToBeg();
+    }
+    else if(key && key.ctrl && key.name === "e")
+    {
+      this.goToEnd();
+    }
+    else if(key && key.ctrl && key.name === "n")
+    {
+      this.addString("\n");
+    }
+    else
+    {
+      if(ch)
+      {
+	this.addString(ch);
+      }
+    }
+  };
+
+  /* TODO: replace deprectated proto with inheritance */
   InputUI.prototype.__proto__ = events.EventEmitter.prototype;
 
-  //TODO: add options to this function
   return function(runtime) {
     return new InputUI(runtime, process.stdin, process.stdout);
-  }
+  };
 });
