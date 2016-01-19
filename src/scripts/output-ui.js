@@ -1,14 +1,232 @@
 /*global define */
 /*jslint unparam: true, node: true*/
 
+/* Packages */
 var chalk = require("chalk");
 
-Array.prototype.exclude = function(arr) {
-  return this.filter(function(a) {
-    return arr.indexOf(a) === -1;
-  });
+/* Token regex */
+var pyret_name = new RegExp("^[a-zA-Z_][a-zA-Z0-9$_\\-]*");
+var pyret_keywords = wordRegexp(["fun", "method", "var", "when", "import",
+  "provide", "data", "end", "except", "for", "from", "and", "or", "not", "as",
+  "if", "else", "cases", "check", "lam", "doc", "try", "ask", "otherwise",
+  "then", "with", "sharing", "where", "block"], false);
+var pyret_keywords_no_indent = wordRegexp(["otherwise", "then", "with", "sharing",
+  "where"], true);
+var pyret_punctuation = wordRegexp(["::", "==", ">=", "<=", "=>", "->", ":=",
+  "<>", ":", "\\.", "<", ">", ",", "\\^", ";", "\\|", "=", "\\+", "\\*", "/",
+  "\\\\", "\\(", "\\)", "\\{", "\\}", "\\[", "\\]"], true);
+var pyret_initial_operators = wordRegexp([ "\\-", "\\+", "\\*", "/", "<",
+  "<=", ">", ">=", "==", "<>", "\\.", "\\^", "is", "raises", "satisfies"],
+  false);
+
+/* Colorscheme map */
+var colorschemes = {
+  'default': {
+    'space': {
+      'pattern': /\s+/,
+      'highlight_group': 0,
+      'highlight': function(str) { return str; }
+    },
+    'comment': {
+      'pattern': /^#.*$/,
+      'highlight_group': 0,
+      'highlight': chalk.cyan
+    },
+    'number': {
+      'pattern': /^[0-9]+(\.[0-9]+)?/,
+      'highlight_group': 0,
+      'highlight': chalk.green
+    },
+    'string': {
+      'pattern': /^('.*')|(".*")/,
+      'highlight_group': 0,
+      'highlight': chalk.green.dim
+    },
+    'builtin': {
+      'pattern': pyret_punctuation,
+      'highlight_group': 0,
+      'highlight': chalk.cyan
+    },
+    'keyword': {
+      'pattern': pyret_keywords,
+      'highlight_group': 0,
+      'highlight': chalk.magenta.dim
+    },
+    'function': {
+      'pattern': /^([a-zA-Z0-9$_\-]+)\s*\(/,
+      'highlight_group': 1,
+      'highlight': chalk.white
+    },
+    'variable': {
+      'pattern': /^([a-zA-Z0-9$_\-]+)(?![a-zA-Z0-9-_])/,
+      'highlight_group': 0,
+      'highlight': function(str) { return str; }
+    },
+    'type': {
+      'pattern': /^(?:(?:\|)|(?:::))\s*([a-zA-Z0-9$_\-]*)/,
+      'highlight_group': 1,
+      'highlight': chalk.blue.dim
+    },
+    'error': {
+      'pattern': null,
+      'highlight_group': 0,
+      'highlight': chalk.red
+    },
+    'name': {
+      'pattern': null,
+      'highlight_group': 0,
+      'highlight': chalk.white
+    },
+    'loc': {
+      'pattern': null,
+      'highlight_group': 0,
+      'highlight': chalk.blue
+    },
+    'stack_trace': {
+      'pattern': null,
+      'highlight_group': 0,
+      'highlight': chalk.blue
+    },
+    'check_success': {
+      'pattern': null,
+      'highlight_group': 0,
+      'highlight': chalk.green
+    },
+    'check_failure': {
+      'pattern': null,
+      'highlight_group': 0,
+      'highlight': chalk.red
+    },
+    'check_neutral': {
+      'pattern': null,
+      'highlight_group': 0,
+      'highlight': chalk.blue
+    },
+    'catchall': {
+      'pattern': /.*/,
+      'highlight_group': 0,
+      'highlight': function(str) { return str; }
+    }
+  }
 };
 
+/* Default indent */
+var repl_indent = "  ";
+
+/* Indent map */
+var indents = {
+  'indent_double':
+  {
+    'pattern': wordRegexp(['data', 'ask', 'cases'], false),
+    'indent_offset': -2,
+    'indent_level': function(indentArray, index) {
+      if(index > 0) {
+	return indentArray[index - 1].indent_level + 2;
+      }
+
+      return 2;
+    }
+  },
+  'unindent_single_soft':
+  {
+    'pattern': wordRegexp(['\\|', 'else', 'where'], false),
+    'indent_offset': -1,
+    'indent_level': function(indentArray, index) {
+      if(index > 0) {
+	return indentArray[index - 1].indent_level;
+      }
+
+      return 0;
+    }
+  },
+  'no_indent':
+  {
+    'pattern': wordRegexp(['\\(.*\\)'], false),
+    'indent_offset': -1,
+    'indent_level': function(indentArray, index) {
+      if(index > 0) {
+	return indentArray[index - 1].indent_level + 1;
+      }
+
+      return 1;
+    }
+  },
+  'indent_single':
+  {
+    'pattern': wordRegexp(['if', '\\('], false),
+    'indent_offset': -1,
+    'indent_level': function(indentArray, index) {
+      if(index > 0) {
+	return indentArray[index - 1].indent_level + 1;
+      }
+
+      return 1;
+    }
+  },
+  'sharing':
+  {
+    'pattern': wordRegexp(['sharing'], false),
+    'indent_offset': -1,
+    'indent_level': function(indentArray, index) {
+      if(index > 0) {
+	return indentArray[index - 1].indent_level - 1;
+      }
+
+      return 0;
+    }
+  },
+  'close_parantheses':
+  {
+    'pattern': wordRegexp(['\\)'], false),
+    'indent_offset': 1,
+    'indent_level': function(indentArray, index) {
+      if(index > 0) {
+	return indentArray[index - 1].indent_level - 1;
+      }
+
+      return 0;
+    }
+  },
+  'end':
+  {
+    'pattern': wordRegexp(['end'], false),
+    'indent_offset': 0,
+    'indent_level': function(indentArray, index) {
+      if(index > 1) {
+	var level = indentArray[index - 1].indent_level;
+	var lastLevel = indentArray[index - 2].indent_level;
+	index = index - 2;
+
+	while(level <= lastLevel && index > 0) {
+	  lastLevel = indentArray[--index].indent_level;
+	}
+
+	if(index === 0)
+	{
+	  return 0;
+	}
+
+	return lastLevel;
+      }
+
+      return 0;
+    }
+  },
+  'catchall':
+  {
+    'pattern': /.*/,
+    'indent_offset': 0,
+    'indent_level': function(indentArray, index) {
+      if(index > 0) {
+	return indentArray[index - 1].indent_level;
+      }
+
+      return 0;
+    }
+  }
+};
+
+/* Additional String methods */
 String.prototype.repeat = function(num) {
   return new Array(num + 1).join(this);
 };
@@ -31,556 +249,285 @@ String.prototype.eatUntil = function(reg) {
   return str.eat(reg);
 };
 
-define([], function() {
-  var pyret_indent_regex = new RegExp("^[a-zA-Z_][a-zA-Z0-9$_\\-]*");
-  var pyret_keywords =
-    wordRegexp(["fun", "method", "var", "when",
-      "import", "provide", "data", "end",
-      "except", "for", "from", "and",
-      "or", "not", "as", "if",
-      "else", "cases", "check", "lam"]);
-  var pyret_keywords_colon =
-    wordRegexp(["doc", "try", "ask", "otherwise",
-      "then", "with", "sharing", "where",
-      "block"]);
-  var pyret_single_punctuation =
-    new RegExp("^(["
-      + ["\\:", "\\.", "<", ">",
-	  ",", "^", ";", "|",
-	  "=", "+", "*", "/",
-	  "\\", "\\(", "\\)", "{",
-	  "}", "\\[", "\\]"].join('')
-      + "])");
-  var pyret_double_punctuation =
-    new RegExp("^(("
-      + ["::", "==", ">=", "<=", "=>", "->", ":=", "<>"].join(")|(")
-      + "))");
-  var pyret_initial_operators =
-    new RegExp("^("
-      + [ "\\-", "\\+", "\\*", "/", "<",
-	  "<=", ">", ">=", "==", "<>",
-	  "\\.", "\\^", "is", "raises", "satisfies"].join("|")
-      + ")");
-  var pyret_no_indent =
-    new RegExp("(("
-	+ ["otherwise", "then", "with", "sharing", "where"].join(")|(")
-	+ "))");
-  var pyret_unindent_single_soft = /^\s*\|($|\b|\s+)/;
-  var pyret_unindent_single_hard = /^\s*(else|where)($|\b|\s+)/;
-  var pyret_unindent_double = /^\s*sharing($|\b|\s+)/;
-  var pyret_indent_double = /^\s*(data|ask|cases)($|\b|\s+)/;
-  var pyret_colon = /^\s*:($|\b|\s+)/;
-  var pyret_end = /^\s*end($|\b|\s+)/;
-  var pyret_open_braces = /^\s*(\(|\[|\{)/;
-  var pyret_close_braces = /^\s*(\)|\]|\})/;
+/* @class StringStream
+ *    a class used to process text by pattern matching.
+ */
+function StringStream(string, tabSize) {
+  this.pos = this.start = 0;
+  this.string = string;
+  this.tabSize = tabSize || 8;
+  this.lastColumnPos = this.lastColumnValue = 0;
+}
 
-  var STYLE_MAP = {
-    'default': {
-      //Syntax highlighting
-      'number': chalk.green,
-      'string': chalk.green.dim,
-      'comment': chalk.cyan,
-      'builtin': chalk.gray,
-      'keyword': chalk.magenta.dim,
-      'variable': chalk.white,
-      'function-name': chalk.white,
-      'type': chalk.blue.dim,
-      //Error message highlighting
-      'error': chalk.red,
-      'name': chalk.white,
-      'loc': chalk.blue,
-      'stack-trace': chalk.blue,
-      //Check message highlighting
-      'check-success': chalk.green,
-      'check-failure': chalk.red,
-      'check-neutral': chalk.blue
+StringStream.prototype = {
+  eol: function() {return this.pos >= this.string.length;},
+  peek: function() {return this.string.charAt(this.pos) || undefined;},
+  next: function() {
+    if (this.pos < this.string.length) {
+      return this.string.charAt(this.pos++);
     }
-  };
-
-  var tokenStringDouble = makeTokenString('"');
-  var tokenStringSingle = makeTokenString("'");
-
-  function wordRegexp(words) {
-    return new RegExp("^((" + words.join(")|(") + "))(?![a-zA-Z0-9-_])");
-  }
-
-  function countColumn(string, end, tabSize, startIndex, startValue) {
-    var i, n;
-
-    if (end == null) {
-      end = string.search(/[^\s\u00a0]/);
-      if (end == -1) {
-	end = string.length;
-      }
-    }
-
-    for (i = startIndex || 0, n = startValue || 0; i < end; ++i) {
-      if (string.charAt(i) == "\t") {
-	n += tabSize - (n % tabSize);
-      }
-      else {
-	++n;
-      }
-    }
-    return n;
-  }
-
-  function StringStream(string, tabSize) {
-    this.pos = this.start = 0;
-    this.string = string;
-    this.tabSize = tabSize || 8;
-    this.lastColumnPos = this.lastColumnValue = 0;
-  }
-
-  StringStream.prototype = {
-    eol: function() {return this.pos >= this.string.length;},
-    sol: function() {return this.pos == 0;},
-    peek: function() {return this.string.charAt(this.pos) || undefined;},
-    next: function() {
-      if (this.pos < this.string.length) {
-	return this.string.charAt(this.pos++);
-      }
-    },
-    eat: function(match) {
-      var ch = this.string.charAt(this.pos);
-      var ok;
-      if (typeof match == "string") {
-       	ok = ch == match;
-      }
-      else {
-	ok = ch && (match.test ? match.test(ch) : match(ch));
-      }
-      if (ok) {
-	++this.pos; return ch;
-      }
-    },
-    eatWhile: function(match) {
-      var start = this.pos;
-      while (this.eat(match)){}
-      return this.pos > start;
-    },
-    eatSpace: function() {
-      var start = this.pos;
-      while (/[\s\u00a0]/.test(this.string.charAt(this.pos))) {
-	++this.pos;
-      }
-      return this.pos > start;
-    },
-    skipToEnd: function() {this.pos = this.string.length;},
-    skipTo: function(ch) {
-      var found = this.string.indexOf(ch, this.pos);
-      if (found > -1) {this.pos = found; return true;}
-    },
-    backUp: function(n) {this.pos -= n;},
-    column: function() {
-      if (this.lastColumnPos < this.start) {
-	this.lastColumnValue = countColumn(this.string, this.start, this.tabSize, this.lastColumnPos, this.lastColumnValue);
-	this.lastColumnPos = this.start;
-      }
-      return this.lastColumnValue;
-    },
-    indentation: function() {
-      return countColumn(this.string, null, this.tabSize);
-    },
-    match: function(pattern, consume, caseInsensitive) {
-      if (typeof pattern == "string") {
-	var cased = function(str) {return caseInsensitive ? str.toLowerCase() : str;};
-	var substr = this.string.substr(this.pos, pattern.length);
-	if (cased(substr) == cased(pattern)) {
-	  if (consume !== false) {
-	    this.pos += pattern.length;
-	  }
-	  return true;
-	}
-      } else {
-	var match = this.string.slice(this.pos).match(pattern);
-	if (match && match.index > 0) {
-	  return null;
-	}
-	if (match && consume !== false) {
-	  this.pos += match[0].length;
-	}
-	return match;
-      }
-    },
-    current: function(){return this.string.slice(this.start, this.pos);}
-  };
-
-  function ret(state, tokType, style) {
-    state.lastToken = tokType;
-    return style;
-  }
-
-  function makeTokenString(singleOrDouble) {
-    return function(stream, state) {
-      var insideRE = singleOrDouble === "'" ? /[^'\\]/ : /[^"\\]/;
-      var endRE = singleOrDouble === "'" ? /'/ : /"/;
-
-      while (!stream.eol()) {
-	stream.eatWhile(insideRE);
-
-	if (stream.eat('\\')) {
-	  stream.next();
-
-	  if (stream.eol()) {
-	    return ret(state, 'string', 'string');
-	  }
-	}
-	else if (stream.eat(singleOrDouble)) {
-	  return ret(state, 'string', 'string');
-	}
-	else {
-	  stream.eat(endRE);
-	}
-      }
-
-      return ret(state, 'string', 'string');
-    };
-  }
-
-  function getTokenStyle(stream, state) {
-    if(stream.eatSpace()) {
-      return 'IGNORED-SPACE';
-    }
-
-    var ch = stream.peek();
-
-    //Comments
-    if(ch === '#') {
-      stream.skipToEnd();
-      return ret(state, 'COMMENT', 'comment');
-    }
-    //Numbers
-    if(stream.match(/^[0-9]+(\.[0-9]+)?/, true)) {
-      return ret(state, 'number', 'number');
-    }
-
-    if(ch === '"') {
-      stream.eat('"');
-      return tokenStringDouble(stream, state);
-    }
-    if(ch === "'") {
-      stream.eat("'");
-      return tokenStringSingle(stream, state);
-    }
-
-    var match;
-
-    //Question(ben) what are level 1 and level 2?
-    if((match = stream.match(pyret_double_punctuation, true)) ||
-	(match = stream.match(pyret_single_punctuation, true))) {
-      if(state.dataNoPipeColon && (match[0] == ':' || match[0] == '|')) {
-	state.dataNoPipeColon = false;
-      }
-
-      return ret(state, match[0], 'builtin');
-    }
-    if(match = stream.match(pyret_keywords, true)) {
-      if(match[0] == 'data') {
-	state.dataNoPipeColon = true;
-      }
-
-      return ret(state, match[0], 'keyword');
-    }
-    if(match = stream.match(pyret_keywords_colon, true)) {
-      if(stream.peek() == ':') {
-	return ret(state, match[0], 'keyword');
-      }
-
-      return ret(state, 'name', 'variable');
-    }
-
-    //Matches names
-    if(match = stream.match(pyret_indent_regex, true)) {
-      if (state.lastToken === "|" || state.lastToken === "::"
-	  || state.lastToken === "data" || state.dataNoPipeColon) {
-	state.dataNoPipeColon = false;
-	return ret(state, 'name', 'type');
-      }
-
-      if(stream.match(/\s*\(/, false)) {
-	return ret(state, 'name', 'function-name');
-      }
-
-      return ret(state, 'name', 'variable');
-    }
-
-    if (stream.eat("-")) {
-      return ret(state, '-', '-', 'builtin');
-    }
-
-    stream.next();
-    return null;
-  }
-
-  function tokenize(text, state, f) {
-    var curStart = 0, curStyle = null;
-    var stream = new StringStream(text, 2),
-	style;
-
-    while (!stream.eol()) {
-      style = getTokenStyle(stream, state);
-
-      if(curStyle !== style) {
-	if (curStart < stream.start) {
-	  f(stream.start, curStyle);
-	}
-
-	curStart = stream.start; curStyle = style;
-      }
-
-      stream.start = stream.pos;
-    }
-
-    if (curStart < stream.pos) {
-      f(stream.pos, curStyle);
-    }
-  }
-
-  return function(colorscheme) {
-    var styleMap;
-
-    if(colorscheme) {
-      styleMap = STYLE_MAP[colorscheme];
+  },
+  eat: function(match) {
+    var ch = this.string.charAt(this.pos);
+    var ok;
+    if (typeof match == "string") {
+      ok = ch == match;
     }
     else {
-      styleMap = STYLE_MAP['default'];
+      ok = ch && (match.test ? match.test(ch) : match(ch));
+    }
+    if (ok) {
+      ++this.pos; return ch;
+    }
+  },
+  eatWhile: function(match) {
+    var start = this.pos;
+    while (this.eat(match)){}
+    return this.pos > start;
+  },
+  eatSpace: function() {
+    var start = this.pos;
+    while (/[\s\u00a0]/.test(this.string.charAt(this.pos))) {
+      ++this.pos;
+    }
+    return this.pos > start;
+  },
+  match: function(pattern, match_group, consume, caseInsensitive) {
+    if (typeof pattern == "string") {
+      var cased = function(str) {return caseInsensitive ? str.toLowerCase() : str;};
+      var substr = this.string.substr(this.pos, pattern.length);
+      if (cased(substr) == cased(pattern)) {
+	if (consume !== false) {
+	  this.pos += pattern.length;
+	}
+	return true;
+      }
+    } else {
+      var match = this.string.slice(this.pos).match(pattern);
+      if (match && match.index > 0) {
+	return null;
+      }
+      if (match && consume !== false) {
+	this.pos += match[match_group].length;
+      }
+      return match;
+    }
+  }
+};
+
+/* @function wordRegexp
+ *    make single regular expression from multiple words.
+ */
+function wordRegexp(words, startString) {
+  var startPattern = startString ? "^((" : "((";
+  var endPattern = "))(\\s+|$|\\b|(?![a-zA-Z0-9-_]))";
+  return new RegExp(startPattern + words.join(")|(") + endPattern);
+}
+
+/* @function getNextState
+ *    update the state to reflect the last token, and return the current style.
+ */
+function getNextState(state, token, style) {
+  state.lastToken = token;
+  return style;
+}
+
+/* @function getNextHighlight
+ *    get the next highlight for the token stream, using the colorscheme.
+ */
+function getNextHighlight(stream, state, tokens) {
+  var token;
+  var match;
+
+  /* Space */
+  if(stream.eatSpace())
+  {
+    return getNextState(state, ' ', undefined);
+  }
+
+  for(token in tokens)
+  {
+    if(tokens.hasOwnProperty(token))
+    {
+      if((match = stream.match(tokens[token].pattern, tokens[token].highlight_group)))
+      {
+	return getNextState(state, match[tokens[token].highlight_group],
+	    token);
+      }
+    }
+  }
+
+  return getNextState(state, stream.next(), undefined);
+}
+
+function getTokens(text, state, tokens, pushHighlight) {
+  var stream = new StringStream(text, 2);
+
+  var start = 0;
+  var highlight = null;
+  var nextHighlight;
+
+  while (!stream.eol()) {
+    nextHighlight = getNextHighlight(stream, state, tokens);
+
+    if(highlight !== nextHighlight) {
+      pushHighlight(start, stream.start, highlight);
+      start = stream.start;
+      highlight = nextHighlight;
     }
 
-    //TODO: pass the color scheme to options
-    function Renderer() {
-      this.highlightLine = function(line) {
-	var state = {
-	  dataNoPipeColon: false
-	};
-	var styles = [];
-	var lastEnd = 0;
-	var hl = "",
-	    styleFun,
-	    i;
+    stream.start = stream.pos;
+  }
 
-	tokenize(line, state, function(end, style) {
-	  styles.push(end, style);
-	});
+  if (start < stream.pos) {
+    pushHighlight(start, stream.pos, highlight);
+  }
+}
 
-	for(i = 0; i < styles.length; i += 2) {
-	  styleFun = styleMap[styles[i + 1]];
+define([], function() {
 
-	  if(styleFun !== undefined) {
-	    hl += styleFun(line.substring(lastEnd, styles[i]));
-	  }
-	  else {
-	    hl += line.substring(lastEnd, styles[i]);
-	  }
+  /* @class Renderer */
+  function Renderer(color) {
+    this.tokens = colorschemes[color];
+  }
 
-	  lastEnd = styles[i];
-	}
+  Renderer.prototype.highlightLine = function(line) {
+    var state = {};
+    var tokens = [];
+    var styleRule;
 
-	return hl;
-      };
+    var highlightedLine = "";
 
-      this.renderValue = function(runtime, val) {
-	if(runtime.isPyretVal(val)) {
-	  if(!runtime.isNothing(val)) {
-	    return runtime.toReprJS(val, runtime.ReprMethods._torepr);
-	  }
-	  else {
-	    return "";
-	  }
-	}
-	else {
-	  return String(val);
-	}
-      };
+    getTokens(line, state, this.tokens, function(start, end, style) {
+      tokens.push({'start': start, 'end': end, 'style': style});
+    });
 
-      this.renderValueHighlight = function(runtime, val) {
-	return this.highlightLine(this.renderValue(runtime, val));
-      };
+    tokens.forEach(function(token) {
+      styleRule = this.tokens[token.style];
 
-      //TODO: create these methods automatically by going throught he style map
-      this.renderName = function(name) {
-	return styleMap.name(name);
-      };
+      if(styleRule !== undefined) {
+	highlightedLine += styleRule.highlight(line.substring(token.start,
+	      token.end));
+      }
+      else {
+	highlightedLine += line.substring(token.start, token.end);
+      }
 
-      this.renderType = function(type) {
-	return styleMap.type(type);
-      };
+    }, this);
 
-      this.renderError = function(error) {
-	return styleMap.error(error);
-      };
+    return highlightedLine;
+  };
 
-      this.renderLoc = function(loc) {
-	return styleMap.loc(loc);
-      };
+  Renderer.prototype.renderValue = function(runtime, val) {
+    if(runtime.isPyretVal(val)) {
+      if(!runtime.isNothing(val)) {
+	return runtime.toReprJS(val, runtime.ReprMethods._torepr);
+      }
 
-      this.renderStackTrace = function(stackTrace) {
-	return styleMap['stack-trace'](stackTrace);
-      };
-
-      this.renderCheckSuccess = function(check) {
-	return styleMap['check-success'](check);
-      };
-
-      this.renderCheckFailure = function(check) {
-	return styleMap['check-failure'](check);
-      };
-
-      this.renderCheckNeutral = function(check) {
-	return styleMap['check-neutral'](check);
-      };
-
-      this.drawAndPrintAnswer = function(runtime, answer) {
-	var result = this.renderValue(runtime, answer);
-
-	if(result !== "") {
-	  console.log(this.highlightLine(result));
-	}
-      };
-
-      this.drawSrcloc = function(runtime, s) {
-	return this.renderLoc(s ? runtime.getField(s, "format").app(true) : "");
-      };
+      return '';
     }
 
-    function Indenter() {
-      this.unindent = function(indentArray) {
-	var lastIndent = indentArray.shift();
+    return String(val);
+  };
 
-	while(lastIndent && lastIndent !== Indenter.INDENT_SINGLE
-	    && lastIndent !== Indenter.INDENT_DOUBLE) {
-	  lastIndent = indentArray.shift();
-	}
+  Renderer.prototype.renderValueHighlight = function(runtime, val) {
+    return this.highlightLine(this.renderValue(runtime, val));
+  };
 
-	return indentArray;
-      };
+  Renderer.prototype.renderName = function(name) {
+    return this.tokens.name.highlight(name);
+  };
 
-      this.indent = function(cmd, indentArray) {
-	var lastCmd = "";
-	var addColon = true;
+  Renderer.prototype.renderType = function(type) {
+    return this.tokens.type.highlight(type);
+  };
 
-	while(cmd.length > 0 && cmd !== lastCmd) {
-	  lastCmd = cmd;
+  Renderer.prototype.renderError = function(error) {
+    return this.tokens.error.highlight(error);
+  };
 
-	  if(cmd.match(pyret_no_indent)) {
-	    cmd = cmd.eat(pyret_no_indent).eatUntil(pyret_colon);
-	  }
-	  else if(cmd.match(pyret_unindent_single_soft)) {
-	    cmd = cmd.eat(pyret_unindent_single_soft);
-	  }
-	  else if(cmd.match(pyret_unindent_single_hard)) {
-	    cmd = cmd.eat(pyret_unindent_single_hard);
-	    indentArray = this.unindent(indentArray);
-	  }
-	  else if(cmd.match(pyret_unindent_double)) {
-	    cmd = cmd.eat(pyret_unindent_double);
-	    indentArray.unshift(Indenter.UNINDENT);
-	  }
-	  else if(cmd.match(pyret_indent_double)) {
-	    cmd = cmd.eat(pyret_indent_double).eatUntil(pyret_colon);
-	    indentArray.unshift(Indenter.INDENT_DOUBLE);
-	  }
-	  else if(cmd.match(pyret_double_punctuation)) {
-	    cmd = cmd.eat(pyret_double_punctuation);
-	  }
-	  else if(cmd.match(pyret_colon)) {
-	    cmd = cmd.eat(pyret_colon);
+  Renderer.prototype.renderLoc = function(loc) {
+    return this.tokens.loc.highlight(loc);
+  };
 
-	    if(!addColon) {
-	      addColon = true;
-	    }
-	    else {
-	      indentArray.unshift(Indenter.INDENT_SINGLE);
-	    }
-	  }
-	  else if(cmd.match(pyret_open_braces)) {
-	    cmd = cmd.eat(pyret_open_braces);
-	    indentArray.unshift(Indenter.INDENT_SINGLE);
-	    addColon = false;
-	  }
-	  else if(cmd.match(pyret_close_braces)) {
-	    cmd = cmd.eat(pyret_close_braces);
-	    indentArray = this.unindent(indentArray);
-	    addColon = true;
-	  }
-	  else if(cmd.match(pyret_end)) {
-	    cmd = cmd.eat(pyret_end);
-	    indentArray = this.unindent(indentArray);
-	  }
-	  else if(cmd.match(pyret_keywords)) {
-	    cmd = cmd.eat(pyret_keywords);
-	    addColon = true;
-	  }
-	  else if(cmd.match(pyret_keywords_colon)) {
-	    cmd = cmd.eat(pyret_keywords_colon);
+  Renderer.prototype.renderStackTrace = function(stackTrace) {
+    return this.tokens.stack_trace.highlight(stackTrace);
+  };
 
-	    if(cmd.match(pyret_colon)) {
-	      cmd = cmd.eat(pyret_colon);
-	    }
-	  }
-	  else if(cmd.match(pyret_indent_regex)) {
-	    cmd = cmd.eat(pyret_indent_regex).eat(/^\s*/);
-	  }
-	  else {
-	    cmd = cmd.eatNext();
-	  }
-	}
-	return indentArray;
-      };
+  Renderer.prototype.renderCheckSuccess = function(check) {
+    return this.tokens.check_success.highlight(check);
+  };
 
-      this.getIndent = function(line, indentArray, indent) {
-	var trimmed = line.trim();
-	var indentSize = indentArray.reduce(function(prev, cur, i, a) {
-	  if(cur === Indenter.INDENT_DOUBLE) {
-	    return prev + 2;
-	  }
-	  else if(cur === Indenter.INDENT_SINGLE) {
-	    return prev + 1;
-	  }
-	  else if(cur === Indenter.UNINDENT) {
-	    return prev - 1;
-	  }
+  Renderer.prototype.renderCheckFailure = function(check) {
+    return this.tokens.check_failure.highlight(check);
+  };
 
-	  return prev;
-	}, 0);
+  Renderer.prototype.renderCheckNeutral = function(check) {
+    return this.tokens.check_neutral.highlight(check);
+  };
 
-	if(trimmed.match(pyret_end)) {
-	  var iStack = indentArray.filter(function(n) {
-	    return n === Indenter.INDENT_SINGLE || n === Indenter.INDENT_DOUBLE;
-	  });
-	  var f = iStack[0];
+  Renderer.prototype.drawAndPrintAnswer = function(runtime, answer) {
+    var result = this.renderValue(runtime, answer);
 
-	  if(f === Indenter.INDENT_SINGLE) {
-	    return indent.repeat(indentSize - 1);
-	  }
+    if(result !== "") {
+      console.log(this.highlightLine(result));
+    }
+  };
 
-	  if (f === Indenter.INDENT_DOUBLE && indentSize > 0) {
-	    return indent.repeat(indentSize - 2);
-	  }
-	}
-	else if(trimmed.match(pyret_initial_operators)) {
-	  return indent.repeat(indentSize + 1);
-	}
-	else if(trimmed.match(pyret_unindent_single_soft) ||
-	    trimmed.match(pyret_unindent_single_hard)) {
-	  return indent.repeat(indentSize - 1);
-	}
-	else if(trimmed.match(pyret_unindent_double) && indentSize > 0) {
-	  return indent.repeat(indentSize - 2);
-	}
+  Renderer.prototype.drawSrcloc = function(runtime, s) {
+    return this.renderLoc(s ? runtime.getField(s, "format").app(true) : "");
+  };
 
-	return indent.repeat(indentSize);
-      };
+  /* @class Indenter */
+  function Indenter() { }
+
+  Indenter.INDENT_SINGLE = "is";
+  Indenter.INDENT_SINGLE = "is";
+  Indenter.INDENT_DOUBLE = "id";
+  Indenter.UNINDENT = "u";
+
+  Indenter.prototype.unindent = function(indentArray) {
+    var lastIndent = indentArray.shift();
+
+    while(lastIndent && lastIndent !== Indenter.INDENT_SINGLE &&
+	lastIndent !== Indenter.INDENT_DOUBLE) {
+      lastIndent = indentArray.shift();
     }
 
-    Indenter.INDENT_SINGLE = "is";
-    Indenter.INDENT_SINGLE = "is";
-    Indenter.INDENT_DOUBLE = "id";
-    Indenter.UNINDENT = "u";
+    return indentArray;
+  };
 
-    return {
-      Renderer : Renderer,
-      Indenter : Indenter
-    };
+  Indenter.prototype.indent = function(lines, indentArray) {
+    var index = -1;
+
+    lines.forEach(function(cmd) {
+      var indentType;
+      index += 1;
+
+      for(indentType in indents) {
+	if(indents.hasOwnProperty(indentType)) {
+	  if(cmd.match(indents[indentType].pattern)) {
+	    indentArray.push(
+	      {
+		'indent_offset': indents[indentType].indent_offset,
+		'indent_level': indents[indentType].indent_level(indentArray, index)
+	      });
+	    break;
+	  }
+	}
+      }
+    });
+
+    return indentArray;
+  };
+
+  Indenter.prototype.getIndent = function(indentArray, index) {
+    var repeat = Math.max(indentArray[index].indent_level + indentArray[index].indent_offset, 0);
+    return repl_indent.repeat(repeat);
+  };
+
+  return {
+    Renderer : Renderer,
+    Indenter : Indenter
   };
 });

@@ -124,12 +124,10 @@ function numLines(str) {
 }
 
 /* Input UI functionality */
-define(["q", "./output-ui"], function(Q, outputLib) {
+define(["q", "./output-ui"], function(Q, outputUI) {
   /* Instantiate modules */
-  var outputUI = outputLib('default');
-  var renderer = new outputUI.Renderer();
-  var Indenter = outputUI.Indenter;
-  var indenter = new Indenter();
+  var renderer = new outputUI.Renderer('default');
+  var indenter = new outputUI.Indenter();
 
   /*
    * @class InputUI
@@ -179,9 +177,6 @@ define(["q", "./output-ui"], function(Q, outputLib) {
 
     /* Indent array for text */
     this.indentArray = [];
-
-    /* Indent to be used */
-    this.indent = "  ";
 
     /* Current cursor position in block */
     this.cursorPosition = 0;
@@ -569,13 +564,14 @@ define(["q", "./output-ui"], function(Q, outputLib) {
   InputUI.prototype.addIndent = function()
   {
     /* Update indent array for lines up to cursorPosition */
-    this.updateIndentArray(0);
+    this.updateIndentArray();
 
     /* Get current line */
     var curLine = this.getLine(0, false);
 
     /* Get indent */
-    var indent = indenter.getIndent(curLine, this.indentArray, this.indent);
+    var indent = indenter.getIndent(this.indentArray,
+	this.text.slice(0, this.cursorPosition).split("\n").length - 1);
 
     /* Add indent to text */
     var lineNoIndent = curLine.replace(/^([^\S\n]+)/, "");
@@ -647,19 +643,12 @@ define(["q", "./output-ui"], function(Q, outputLib) {
   * @function updateIndentArray
   *   update indent array, containing indent levels.
   */
-  InputUI.prototype.updateIndentArray = function(offset) {
+  InputUI.prototype.updateIndentArray = function() {
     /* Get lines before cursor position */
-    var lines = this.getLinesBefore(this.text,
-	numLines(this.text.slice(0, this.cursorPosition)) - 1 + offset);
+    var lines = this.text.split("\n");
 
     /* Reset indent array */
-    this.indentArray = [];
-
-    /* Iterate over lines, and update indents */
-    lines.forEach(function(cmd) {
-      cmd = cmd.trim();
-      this.indentArray = indenter.indent(cmd, this.indentArray);
-    }, this);
+    this.indentArray = indenter.indent(lines, []);
   };
 
   /*
@@ -738,7 +727,7 @@ define(["q", "./output-ui"], function(Q, outputLib) {
   * @function refreshText
   *   
   */
-  InputUI.prototype.refreshText = function(jumpEOL, exit)
+  InputUI.prototype.refreshText = function(jumpEOL)
   {
     /* Get highlighted text */
     var displayText = this.highlightText(this.text);
@@ -767,7 +756,6 @@ define(["q", "./output-ui"], function(Q, outputLib) {
 
     /* Update display position, cursor display, and display text if display
      * position exceeds size of the output window */
-    /* TODO: deal with lines greater than length of the screen */
     if(displayPos.rows >= this.output.rows)
     {
       /* Update last display row if cursor moves past currently displayed text */
@@ -850,8 +838,6 @@ define(["q", "./output-ui"], function(Q, outputLib) {
   /**
       @function annotation
    **/
-  /* TODO: add shift enter, and remove canRun entirely */
-  /* TODO: remove specialized up and down keypresses */
   InputUI.prototype.enter = function(cmd) {
       if(this.canRun()) {
 	this.run();
@@ -869,10 +855,10 @@ define(["q", "./output-ui"], function(Q, outputLib) {
     var displayLines = numLines(this.text);
     var cursorLines = numLines(this.text.slice(0, this.cursorPosition));
 
-    this.updateIndentArray(1);
+    this.updateIndentArray();
 
-    return (this.indentArray.length === 0 && displayLines === 1) ||
-      (curLine === "" && cursorLines === displayLines);
+    return this.indentArray.length === 0 ||
+      this.indentArray[this.indentArray.length - 1].indent_level === 0;
   };
 
   /**
@@ -907,7 +893,7 @@ define(["q", "./output-ui"], function(Q, outputLib) {
       while(this.cursorPosition !== lastCursorPos) {
 	lastCursorPos = this.cursorPosition;
 	this.addIndent();
-	this.keyDownBase(true);
+	this.nextLine();
       }
 
       this.cursorPosition = oldCursorPos;
@@ -921,8 +907,7 @@ define(["q", "./output-ui"], function(Q, outputLib) {
     if(this.historyIndex < this.history.length - 1) {
       this.historyIndex += 1;
       this.text = this.history[this.historyIndex].cur;
-      /* TODO: reset last display row flag */
-      this.refreshText(true, true);
+      this.refreshText(true);
     }
   };
 
@@ -933,15 +918,12 @@ define(["q", "./output-ui"], function(Q, outputLib) {
     if(this.historyIndex > 0) {
       this.historyIndex -= 1;
       this.text = this.history[this.historyIndex].cur;
-      /* TODO: reset last display row flag */
       this.refreshText(true);
     }
   };
 
-  /**
-      @function annotation
-   **/
-  InputUI.prototype.keyUpBase = function(noHistory) {
+  InputUI.prototype.prevLine = function()
+  {
     if(numLines(this.text.slice(0, this.cursorPosition)) > 1) {
       var curLineSlice = this.getLineUntilCursor();
       var nextLine = this.getLine(-1, true);
@@ -956,15 +938,10 @@ define(["q", "./output-ui"], function(Q, outputLib) {
 
       this.refreshText(false);
     }
-    else if(!noHistory) {
-      this.historyPrev();
-    }
   };
 
-  /**
-      @function annotation
-   **/
-  InputUI.prototype.keyDownBase = function(noHistory) {
+  InputUI.prototype.nextLine = function()
+  {
     if(numLines(this.text.slice(this.cursorPosition, this.text.length)) > 1) {
       var curLine = this.getLine(0, true);
       var curLineSlice = this.getLineUntilCursor();
@@ -981,23 +958,20 @@ define(["q", "./output-ui"], function(Q, outputLib) {
 
       this.refreshText(false);
     }
-    else if(!noHistory) {
-      this.historyNext();
-    }
   };
 
   /**
       @function annotation
    **/
   InputUI.prototype.keyUp = function() {
-    this.keyUpBase();
+    this.historyPrev();
   };
 
   /**
       @function annotation
    **/
   InputUI.prototype.keyDown = function() {
-    this.keyDownBase();
+    this.historyNext();
   };
 
   /**
@@ -1099,7 +1073,7 @@ define(["q", "./output-ui"], function(Q, outputLib) {
   /**
       @function annotation
    **/
-  InputUI.prototype.goToBeg = function() {
+  InputUI.prototype.cursorToStartLine = function() {
     var lineUntilCursor = this.getLineUntilCursor();
 
     if (lineUntilCursor.length === 0 || lineUntilCursor.charAt(lineUntilCursor.length - 1) !== "\n") {
@@ -1112,7 +1086,7 @@ define(["q", "./output-ui"], function(Q, outputLib) {
   /**
       @function annotation
    **/
-  InputUI.prototype.goToEnd = function() {
+  InputUI.prototype.cursorToEndLine = function() {
     var lineUntilCursor = this.getLineUntilCursor();
     var curLine;
 
@@ -1159,9 +1133,25 @@ define(["q", "./output-ui"], function(Q, outputLib) {
     {
       this.keyLeft();
     }
+    else if(key && key.ctrl && key.name === "a")
+    {
+      this.cursorToStartLine();
+    }
+    else if(key && key.ctrl && key.name === "e")
+    {
+      this.cursorToEndLine();
+    }
     else if(key && key.name === "backspace")
     {
       this.backspace();
+    }
+    else if(key && key.ctrl && key.name === "y")
+    {
+      this.copy();
+    }
+    else if(key && key.ctrl && key.name === "v")
+    {
+      this.pasteToRepl();
     }
     else if(key && key.ctrl && key.name === "c")
     {
@@ -1170,22 +1160,6 @@ define(["q", "./output-ui"], function(Q, outputLib) {
     else if(key && key.ctrl && key.name === "d")
     {
       this.exit();
-    }
-    else if(key && key.ctrl && key.name === "v")
-    {
-      this.pasteToRepl();
-    }
-    else if(key && key.ctrl && key.name === "y")
-    {
-      this.copy();
-    }
-    else if(key && key.ctrl && key.name === "a")
-    {
-      this.goToBeg();
-    }
-    else if(key && key.ctrl && key.name === "e")
-    {
-      this.goToEnd();
     }
     else if(key && key.ctrl && key.name === "n")
     {
@@ -1200,7 +1174,15 @@ define(["q", "./output-ui"], function(Q, outputLib) {
     }
   };
 
-  /* TODO: replace deprectated proto with inheritance */
+  /* TODO: reduce over indentArray in updateIndentArray */
+  /* TODO: update addIndent to get index */
+  /* TODO: examine placing of updateIndentArray */
+
+  /* TODO: extensible way to add keypresses */
+  /* TODO: extensible way to add error messages */
+  /* TODO: import directive */
+  /* TODO: document (how to use and extend) */
+  /* TODO: tests */
   InputUI.prototype.__proto__ = events.EventEmitter.prototype;
 
   return function(runtime) {

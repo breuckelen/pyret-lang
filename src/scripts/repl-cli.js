@@ -11,11 +11,10 @@ r.config({
   }
 });
 
-r(["q", "js/repl-lib", "js/runtime-anf", "compiler/compile-structs.arr", "./input-ui", "./output-ui", "./error-ui", "./check-ui"], function(Q, replLib, runtimeLib, csLib, inputLib, outputLib, errorUI, checkUI) {
+r(["q", "js/repl-lib", "js/runtime-anf", "compiler/compile-structs.arr", "./input-ui", "./output-ui", "./error-ui", "./check-ui"], function(Q, replLib, runtimeLib, csLib, inputLib, outputUI, errorUI, checkUI) {
   var runtime = runtimeLib.makeRuntime({});
   var inputUI = inputLib(runtime);
-  var outputUI = outputLib('default');
-  var renderer = new outputUI.Renderer();
+  var renderer = new outputUI.Renderer('default');
   var get = runtime.getField;
 
   runtime.loadModules(runtime.namespace, [csLib], function(cs) {
@@ -40,10 +39,10 @@ r(["q", "js/repl-lib", "js/runtime-anf", "compiler/compile-structs.arr", "./inpu
 	    var exception = res.exn;
 	    errorUI.drawAndPrintError(runtime, exception);
 	  }
-
+	  
 	  inputUI.prompt();
 	} catch(e) {
-	  console.error("Interactions stopped due to error: " + e);
+	  console.error("Interactions stopped due to error: " + e.stack);
 	  process.exit(1);
 	}
       });

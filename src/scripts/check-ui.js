@@ -1,11 +1,10 @@
 /*global define */
 /*jslint unparam: true, node: true*/
 
-define(["js/ffi-helpers", "trove/option", "trove/srcloc", "./output-ui", "./error-ui"], function(ffiLib, optionLib, srclocLib, outputLib, errorUI) {
+define(["js/ffi-helpers", "trove/option", "trove/srcloc", "./output-ui", "./error-ui"], function(ffiLib, optionLib, srclocLib, outputUI, errorUI) {
   function drawCheckResults(runtime, checkResults) {
     var ffi = ffiLib(runtime, runtime.namespace);
-    var outputUI = outputLib('default');
-    var renderer = new outputUI.Renderer();
+    var renderer = new outputUI.Renderer('default');
     var get = runtime.getField;
     var checkArray = ffi.toArray(checkResults);
 

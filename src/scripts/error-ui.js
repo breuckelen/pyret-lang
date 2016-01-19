@@ -4,11 +4,10 @@
 /*TODO:
  * Make sure that the renderer has a type for errors, and that they are rendered accordingly, stack traces, etc.
  */
-define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "compiler/compile-structs.arr", "./output-ui"], function(ffiLib, srclocLib, errorLib, contractsLib, csLib, outputLib) {
+define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "compiler/compile-structs.arr", "./output-ui"], function(ffiLib, srclocLib, errorLib, contractsLib, csLib, outputUI) {
   function drawError(runtime, exception) {
     var ffi = ffiLib(runtime, runtime.namespace);
-    var outputUI = outputLib('default');
-    var renderer = new outputUI.Renderer();
+    var renderer = new outputUI.Renderer('default');
     var cases = ffi.cases;
     var get = runtime.getField;
 
