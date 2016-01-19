@@ -127,7 +127,7 @@ function numLines(str) {
 define(["q", "./output-ui"], function(Q, outputUI) {
   /* Instantiate modules */
   var renderer = new outputUI.Renderer('default');
-  var indenter = new outputUI.Indenter();
+  var indenter = new outputUI.Indenter('  ');
 
   /*
    * @class InputUI
@@ -206,11 +206,8 @@ define(["q", "./output-ui"], function(Q, outputUI) {
     /* Disable interaction while displaying prompt */
     this.setListening(false);
 
-    /* If not end of block, increase prompt number */
-    if(this.indentArray.length === 0)
-    {
-      this.promptNumber += 1;
-    }
+    /* Increase prompt number */
+    this.promptNumber += 1;
 
     /* Clear text being edited */
     this.resetText();
@@ -648,7 +645,7 @@ define(["q", "./output-ui"], function(Q, outputUI) {
     var lines = this.text.split("\n");
 
     /* Reset indent array */
-    this.indentArray = indenter.indent(lines, []);
+    this.indentArray = indenter.getIndentArray(lines, []);
   };
 
   /*
@@ -1174,12 +1171,8 @@ define(["q", "./output-ui"], function(Q, outputUI) {
     }
   };
 
-  /* TODO: reduce over indentArray in updateIndentArray */
-  /* TODO: update addIndent to get index */
-  /* TODO: examine placing of updateIndentArray */
-
-  /* TODO: extensible way to add keypresses */
-  /* TODO: extensible way to add error messages */
+  /* TODO: match multiple patterns on same line for indenting */
+  /* TODO: fix pasting */
   /* TODO: import directive */
   /* TODO: document (how to use and extend) */
   /* TODO: tests */

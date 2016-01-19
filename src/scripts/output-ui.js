@@ -4,6 +4,177 @@
 /* Packages */
 var chalk = require("chalk");
 
+/* Additional String methods */
+String.prototype.repeat = function(num)
+{
+  var ret = "";
+
+  while(num-- > 0)
+  {
+    ret += this;
+  }
+
+  return ret;
+};
+
+String.prototype.eat = function(reg)
+{
+  return this.replace(reg, "");
+};
+
+String.prototype.eatNext = function(reg)
+{
+  return this.slice(1, this.length);
+};
+
+String.prototype.eatUntil = function(reg)
+{
+  var str = this;
+
+  while(str && !str.match(reg)) {
+    str = str.eatNext();
+  }
+
+  return str.eat(reg);
+};
+
+/* @class StringStream
+ *    a class used to process text by pattern matching.
+ */
+function StringStream(string, tabSize)
+{
+  this.pos = this.start = 0;
+  this.string = string;
+  this.tabSize = tabSize || 8;
+  this.lastColumnPos = this.lastColumnValue = 0;
+}
+
+StringStream.prototype = {
+  eol: function() { return this.pos >= this.string.length; },
+  peek: function() { return this.string.charAt(this.pos) || undefined; },
+  next: function()
+  {
+    if (this.pos < this.string.length) {
+      return this.string.charAt(this.pos++);
+    }
+  },
+  eat: function(match)
+  {
+    var ch = this.string.charAt(this.pos);
+    var ok;
+
+    if (typeof match === "string") {
+      ok = (ch === match);
+    }
+    else {
+      ok = ch && (match.test ? match.test(ch) : match(ch));
+    }
+    if (ok) {
+      ++this.pos;
+      return ch;
+    }
+  },
+  eatSpace: function() {
+    var start = this.pos;
+    while (/[\s\u00a0]/.test(this.string.charAt(this.pos))) {
+      ++this.pos;
+    }
+    return this.pos > start;
+  },
+  match: function(pattern, match_group, consume, caseInsensitive) {
+    if (typeof pattern === "string") {
+      var cased = function(str) {return caseInsensitive ? str.toLowerCase() : str;};
+      var substr = this.string.substr(this.pos, pattern.length);
+      if (cased(substr) === cased(pattern)) {
+	if (consume !== false) {
+	  this.pos += pattern.length;
+	}
+	return true;
+      }
+    } else {
+      var match = this.string.slice(this.pos).match(pattern);
+      if (match && match.index > 0) {
+	return null;
+      }
+      if (match && consume !== false) {
+	this.pos += match[match_group].length;
+      }
+      return match;
+    }
+  }
+};
+
+/* @function wordRegexp
+ *    make single regular expression from multiple words.
+ */
+function wordRegexp(words, startString) {
+  var startPattern = startString ? "^((" : "((";
+  var endPattern = "))(\\s+|$|\\b|(?![a-zA-Z0-9-_]))";
+  return new RegExp(startPattern + words.join(")|(") + endPattern);
+}
+
+/* @function getNextState
+ *    update the state to reflect the last token, and return the current style.
+ */
+function getNextState(state, token, style) {
+  state.lastToken = token;
+  return style;
+}
+
+/* @function getNextHighlight
+ *    get the next highlight for the token stream, using the colorscheme.
+ */
+function getNextHighlight(stream, state, tokens) {
+  var token;
+  var match;
+
+  /* Space */
+  if(stream.eatSpace())
+  {
+    return getNextState(state, ' ', undefined);
+  }
+
+  for(token in tokens)
+  {
+    if(tokens.hasOwnProperty(token))
+    {
+      match = stream.match(tokens[token].pattern, tokens[token].highlight_group);
+
+      if(match)
+      {
+	return getNextState(state, match[tokens[token].highlight_group],
+	    token);
+      }
+    }
+  }
+
+  return getNextState(state, stream.next(), undefined);
+}
+
+function getTokens(text, state, tokens, pushHighlight) {
+  var stream = new StringStream(text, 2);
+
+  var start = 0;
+  var highlight = null;
+  var nextHighlight;
+
+  while (!stream.eol()) {
+    nextHighlight = getNextHighlight(stream, state, tokens);
+
+    if(highlight !== nextHighlight) {
+      pushHighlight(start, stream.start, highlight);
+      start = stream.start;
+      highlight = nextHighlight;
+    }
+
+    stream.start = stream.pos;
+  }
+
+  if (start < stream.pos) {
+    pushHighlight(start, stream.pos, highlight);
+  }
+}
+
 /* Token regex */
 var pyret_name = new RegExp("^[a-zA-Z_][a-zA-Z0-9$_\\-]*");
 var pyret_keywords = wordRegexp(["fun", "method", "var", "when", "import",
@@ -110,9 +281,6 @@ var colorschemes = {
   }
 };
 
-/* Default indent */
-var repl_indent = "  ";
-
 /* Indent map */
 var indents = {
   'indent_double':
@@ -142,10 +310,10 @@ var indents = {
   'no_indent':
   {
     'pattern': wordRegexp(['\\(.*\\)'], false),
-    'indent_offset': -1,
+    'indent_offset': 0,
     'indent_level': function(indentArray, index) {
       if(index > 0) {
-	return indentArray[index - 1].indent_level + 1;
+	return indentArray[index - 1].indent_level;
       }
 
       return 1;
@@ -225,164 +393,6 @@ var indents = {
     }
   }
 };
-
-/* Additional String methods */
-String.prototype.repeat = function(num) {
-  return new Array(num + 1).join(this);
-};
-
-String.prototype.eat = function(reg) {
-  return this.replace(reg, "");
-};
-
-String.prototype.eatNext = function(reg) {
-  return this.slice(1, this.length);
-};
-
-String.prototype.eatUntil = function(reg) {
-  var str = this;
-
-  while(str && !str.match(reg)) {
-    str = str.eatNext();
-  }
-
-  return str.eat(reg);
-};
-
-/* @class StringStream
- *    a class used to process text by pattern matching.
- */
-function StringStream(string, tabSize) {
-  this.pos = this.start = 0;
-  this.string = string;
-  this.tabSize = tabSize || 8;
-  this.lastColumnPos = this.lastColumnValue = 0;
-}
-
-StringStream.prototype = {
-  eol: function() {return this.pos >= this.string.length;},
-  peek: function() {return this.string.charAt(this.pos) || undefined;},
-  next: function() {
-    if (this.pos < this.string.length) {
-      return this.string.charAt(this.pos++);
-    }
-  },
-  eat: function(match) {
-    var ch = this.string.charAt(this.pos);
-    var ok;
-    if (typeof match == "string") {
-      ok = ch == match;
-    }
-    else {
-      ok = ch && (match.test ? match.test(ch) : match(ch));
-    }
-    if (ok) {
-      ++this.pos; return ch;
-    }
-  },
-  eatWhile: function(match) {
-    var start = this.pos;
-    while (this.eat(match)){}
-    return this.pos > start;
-  },
-  eatSpace: function() {
-    var start = this.pos;
-    while (/[\s\u00a0]/.test(this.string.charAt(this.pos))) {
-      ++this.pos;
-    }
-    return this.pos > start;
-  },
-  match: function(pattern, match_group, consume, caseInsensitive) {
-    if (typeof pattern == "string") {
-      var cased = function(str) {return caseInsensitive ? str.toLowerCase() : str;};
-      var substr = this.string.substr(this.pos, pattern.length);
-      if (cased(substr) == cased(pattern)) {
-	if (consume !== false) {
-	  this.pos += pattern.length;
-	}
-	return true;
-      }
-    } else {
-      var match = this.string.slice(this.pos).match(pattern);
-      if (match && match.index > 0) {
-	return null;
-      }
-      if (match && consume !== false) {
-	this.pos += match[match_group].length;
-      }
-      return match;
-    }
-  }
-};
-
-/* @function wordRegexp
- *    make single regular expression from multiple words.
- */
-function wordRegexp(words, startString) {
-  var startPattern = startString ? "^((" : "((";
-  var endPattern = "))(\\s+|$|\\b|(?![a-zA-Z0-9-_]))";
-  return new RegExp(startPattern + words.join(")|(") + endPattern);
-}
-
-/* @function getNextState
- *    update the state to reflect the last token, and return the current style.
- */
-function getNextState(state, token, style) {
-  state.lastToken = token;
-  return style;
-}
-
-/* @function getNextHighlight
- *    get the next highlight for the token stream, using the colorscheme.
- */
-function getNextHighlight(stream, state, tokens) {
-  var token;
-  var match;
-
-  /* Space */
-  if(stream.eatSpace())
-  {
-    return getNextState(state, ' ', undefined);
-  }
-
-  for(token in tokens)
-  {
-    if(tokens.hasOwnProperty(token))
-    {
-      if((match = stream.match(tokens[token].pattern, tokens[token].highlight_group)))
-      {
-	return getNextState(state, match[tokens[token].highlight_group],
-	    token);
-      }
-    }
-  }
-
-  return getNextState(state, stream.next(), undefined);
-}
-
-function getTokens(text, state, tokens, pushHighlight) {
-  var stream = new StringStream(text, 2);
-
-  var start = 0;
-  var highlight = null;
-  var nextHighlight;
-
-  while (!stream.eol()) {
-    nextHighlight = getNextHighlight(stream, state, tokens);
-
-    if(highlight !== nextHighlight) {
-      pushHighlight(start, stream.start, highlight);
-      start = stream.start;
-      highlight = nextHighlight;
-    }
-
-    stream.start = stream.pos;
-  }
-
-  if (start < stream.pos) {
-    pushHighlight(start, stream.pos, highlight);
-  }
-}
 
 define([], function() {
 
@@ -470,7 +480,7 @@ define([], function() {
     var result = this.renderValue(runtime, answer);
 
     if(result !== "") {
-      console.log(this.highlightLine(result));
+      process.stdout.write(this.highlightLine(result) + "\n");
     }
   };
 
@@ -479,12 +489,9 @@ define([], function() {
   };
 
   /* @class Indenter */
-  function Indenter() { }
-
-  Indenter.INDENT_SINGLE = "is";
-  Indenter.INDENT_SINGLE = "is";
-  Indenter.INDENT_DOUBLE = "id";
-  Indenter.UNINDENT = "u";
+  function Indenter(indent) {
+    this.indent = indent;
+  }
 
   Indenter.prototype.unindent = function(indentArray) {
     var lastIndent = indentArray.shift();
@@ -497,7 +504,7 @@ define([], function() {
     return indentArray;
   };
 
-  Indenter.prototype.indent = function(lines, indentArray) {
+  Indenter.prototype.getIndentArray = function(lines, indentArray) {
     var index = -1;
 
     lines.forEach(function(cmd) {
@@ -523,7 +530,7 @@ define([], function() {
 
   Indenter.prototype.getIndent = function(indentArray, index) {
     var repeat = Math.max(indentArray[index].indent_level + indentArray[index].indent_offset, 0);
-    return repl_indent.repeat(repeat);
+    return this.indent.repeat(repeat);
   };
 
   return {

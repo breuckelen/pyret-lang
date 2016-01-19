@@ -1,9 +1,6 @@
 /*global define */
 /*jslint unparam: true, node: true*/
 
-/*TODO:
- * Make sure that the renderer has a type for errors, and that they are rendered accordingly, stack traces, etc.
- */
 define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "compiler/compile-structs.arr", "./output-ui"], function(ffiLib, srclocLib, errorLib, contractsLib, csLib, outputUI) {
   function drawError(runtime, exception) {
     var ffi = ffiLib(runtime, runtime.namespace);
@@ -30,30 +27,28 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 
 	  return cases(get(srcloc, "Srcloc"), "Srcloc", loc, {
 	    "builtin": function(_) {
-	      return "Should not be allowed to have a builtin that's unbound "
-		+ renderer.renderName(String(e));
+	      return "Should not be allowed to have a builtin that's unbound " +
+		  renderer.renderName(String(e));
 	    },
 	    "srcloc": function(source, startL, startC, startCh, endL, endC, endCh) {
-	      return "The name "
-		+ renderer.renderName(name)
-		+ " is used but not defined at\n"
-		+ renderer.drawSrcloc(runtime, loc);
+	      return "The name " +
+		  renderer.renderName(name) +
+		  " is used but not defined at " +
+		  renderer.drawSrcloc(runtime, loc);
 	    }
 	  });
 	}
 
-	//Question(ben) why does this function accept different arguments?
 	function drawUnboundVar(id, loc) {
 	  return cases(get(srcloc, "Srcloc"), "Srcloc", loc, {
 	    "builtin": function(_) {
-	      return "Should not be allowed to have a builtin that's unbound "
-		+ renderer.renderName(String(e));
+	      return "Should not be allowed to have a builtin that's unbound " +
+		  renderer.renderName(String(e));
 	    },
 	    "srcloc": function(source, startL, startC, startCh, endL, endC, endCh) {
-	      return "The variable "
-		+ renderer.renderName(id)
-		+ " is assigned to, but not defined, at\n"
-		+ renderer.drawSrcloc(runtime, loc);
+	      return "The variable " +
+		  renderer.renderName(id) +
+		  " is assigned to, but not defined, at " + renderer.drawSrcloc(runtime, loc);
 	    }
 	  });
 	}
@@ -64,14 +59,14 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 
 	  return cases(get(srcloc, "Srcloc"), "Srcloc", loc, {
 	    "builtin": function(_) {
-	      return "Should not be allowed to have a builtin that's unbound "
-		+ renderer.renderName(String(e));
+	      return "Should not be allowed to have a builtin that's unbound " +
+		  renderer.renderName(String(e));
 	    },
 	    "srcloc": function(source, startL, startC, startCh, endL, endC, endCh) {
-	      return "The name "
-		+ renderer.renderName(name)
-		+ " is used as a type but not defined as one, at\n"
-		+ renderer.drawSrcloc(runtime, loc);
+	      return "The name " +
+		  renderer.renderName(name) +
+		  " is used as a type but not defined as one, at " +
+		  renderer.drawSrcloc(runtime, loc);
 	    }
 	  });
 	}
@@ -79,21 +74,22 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 	function drawShadowId(id, newLoc, oldLoc) {
 	  return cases(get(srcloc, "Srcloc"), "Srcloc", oldLoc, {
 	    "builtin": function(_) {
-	      return "The name "
-		+ renderer.renderName(id)
-		+ " is already defined. You need to pick a different name for "
-		+ renderer.renderName(id)
-		+ " at\n"
-		+ renderer.drawSrcloc(runtime, newLoc);
+	      return "The name " + renderer.renderName(id) +
+		  " is already defined. You need to pick a different name for " +
+		  renderer.renderName(id) +
+		  " at " +
+		  renderer.drawSrcloc(runtime, newLoc);
 	    },
 	    //NOTE(ben) this is unecessary
 	    "srcloc": function(source, startL, startC, startCh, endL, endC, endCh) {
-	      return "It looks like you defined the name "
-		+ renderer.renderName(id)
-		+ " twice, at\n"
-		+ renderer.drawSrcloc(runtime, oldLoc) + "\n"
-		+ renderer.drawSrcloc(runtime, newLoc) + "\n"
-		+ "You need to pick a new name for one of them";
+	      return "It looks like you defined the name " +
+		  renderer.renderName(id) +
+		  " twice, at " +
+		  renderer.drawSrcloc(runtime, oldLoc) +
+		  ", " +
+		  renderer.drawSrcloc(runtime, newLoc) +
+		  ". " +
+		  "You need to pick a new name for one of them";
 	    }
 	  });
 	}
@@ -101,13 +97,14 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 	function drawPointlessVar(loc) {
 	  return cases(get(srcloc, "Srcloc"), "Srcloc", loc, {
 	    "builtin": function(_) {
-	      return "Should not be possible to have a builtin var that's anonymous "
-		+ renderer.renderName(String(e));
+	      return "Should not be possible to have a builtin var that's anonymous " +
+		  renderer.renderName(String(e));
 	    },
 	    "srcloc": function(source, startL, startC, startCh, endL, endC, endCh) {
-	      return "Defining anonymous variables is pointless: you have no name to modify. "
-		+ "Either give this expression a name, or bind it to an identifier rather than a variable.\n\n"
-		+ renderer.drawSrcloc(runtime, loc);
+	      return "Defining anonymous variables is pointless: you have no name to modify. " +
+		  "Either give this expression a name, or bind it to an identifier rather than a variable." +
+		  "\n\n" +
+		  renderer.drawSrcloc(runtime, loc);
 	    }
 	  });
 	}
@@ -115,13 +112,14 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 	function drawPointlessShadow(loc) {
 	  return cases(get(srcloc, "Srcloc"), "Srcloc", loc, {
 	    "builtin": function(_) {
-	      return "Should not be possible to have a builtin var that's anonymous "
-		+ renderer.renderName(String(e));
+	      return "Should not be possible to have a builtin var that's anonymous " +
+		  renderer.renderName(String(e));
 	    },
 	    "srcloc": function(source, startL, startC, startCh, endL, endC, endCh) {
-	      return "Anonymous identifiers cannot shadow anything: there is no name to shadow. "
-		+ "Either give this expression a name, or remove the shadow annotation.\n\n"
-		+ renderer.drawSrcloc(runtime, loc);
+	      return "Anonymous identifiers cannot shadow anything: there is no name to shadow. " +
+		  "Either give this expression a name, or remove the shadow annotation." +
+		  "\n\n" +
+		  renderer.drawSrcloc(runtime, loc);
 	    }
 	  });
 	}
@@ -129,19 +127,19 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 	function drawPointlessRec(loc) {
 	  return cases(get(srcloc, "Srcloc"), "Srcloc", loc, {
 	    "builtin": function(_) {
-	      return "Should not be possible to have a builtin var that's anonymous "
-		+ renderer.renderName(String(e));
+	      return "Should not be possible to have a builtin var that's anonymous " +
+		  renderer.renderName(String(e));
 	    },
 	    "srcloc": function(source, startL, startC, startCh, endL, endC, endCh) {
-	      return "The anonymous recursive identifier at "
-		+ renderer.drawSrcloc(runtime, loc)
-		+ " can never be re-used";
+	      return "The anonymous recursive identifier at " +
+		  renderer.drawSrcloc(runtime, loc) +
+		  " can never be re-used";
 	    }
 	  });
 	}
 
 	function drawWfError(msg, loc) {
-	  return msg + "\n" + renderer.drawSrcloc(runtime, loc);
+	  return msg + " " + renderer.drawSrcloc(runtime, loc);
 	}
 
 	function drawWfErrSplit(msg, locs) {
@@ -154,10 +152,10 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 	}
 
 	function drawReservedName(loc, id) {
-	  return "Well-formedness: Pyret disallows the use of "
-	    + renderer.renderName(id)
-	    + " as an identifier\n"
-	    + renderer.drawSrcloc(runtime, loc);
+	  return "Well-formedness: Pyret disallows the use of " +
+		  renderer.renderName(id) +
+		  " as an identifier at " +
+		  renderer.drawSrcloc(runtime, loc);
 	}
 
 	function drawErrorToString(e) {
@@ -205,11 +203,11 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 	  return l && isSrcloc(l);
 	});
         if(userLocs.length > 0) {
-	  var msg = "Stack trace:";
+	  var msg = "Stack trace: ";
           userLocs.forEach(function(ul) {
-	    msg += "\n" + renderer.drawSrcloc(runtime, ul);
+	    msg += renderer.drawSrcloc(runtime, ul) + "\n";
           });
-	  return msg;
+	  return msg.slice(0, msg.length - 1);
         }
 
 	return "";
@@ -220,9 +218,9 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
         var userLocs = srclocStack.filter(function(l) {
           if(!(l && isSrcloc(l))) { return false; }
           var source = runtime.getField(l, "source");
-          return (source === "definitions"
-	    || source.indexOf("interactions") !== -1
-	    || source.indexOf("gdrive") !== -1);
+          return (source === "definitions" ||
+		  source.indexOf("interactions") !== -1 ||
+		  source.indexOf("gdrive") !== -1);
         });
 
         var probablyErrorLocation = userLocs[ix];
@@ -237,37 +235,35 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 	}
 
 	function drawGenericTypeMismatch(value, type) {
-          // TODO(joe): How to improve this search?
           var probablyErrorLocation = getLastUserLocation(e, 0);
 
-	  return "Expected to get a "
-	    + renderer.renderType(type)
-	    + " as an argument, but got this instead:\n"
-	    + renderer.renderValueHighlight(runtime, value)
-	    + "\nat\n"
-	    + renderer.drawSrcloc(runtime, probablyErrorLocation);
+	  return "Expected to get a " +
+		  renderer.renderType(type) +
+		  " as an argument, but got this instead: " +
+		  renderer.renderValueHighlight(runtime, value) +
+		  " at " +
+		  renderer.drawSrcloc(runtime, probablyErrorLocation);
         }
 
 	function drawCasesArityMismatch(branchLoc, numArgs, actualArity) {
-	  return "The cases branch at\n"
-	    + renderer.drawSrcloc(runtime, branchLoc)
-	    + "\nshould have only " + actualArity
-	    + " arguments, but there are " + numArgs;
+	  return "The cases branch at " +
+		  renderer.drawSrcloc(runtime, branchLoc) +
+		  " should have only " + actualArity +
+		  " arguments, but there are " + numArgs;
         }
 
 	function drawCasesSingletonMismatch(branchLoc, shouldBeSingleton) {
-	  var msg = "The cases branch at\n" + renderer.drawSrcloc(runtime, branchLoc);
+	  var msg = "The cases branch at " + renderer.drawSrcloc(runtime, branchLoc);
 
           if(shouldBeSingleton) {
-	    msg += "\nhas an argument list, but the variant is a singleton";
+	    msg += " has an argument list, but the variant is a singleton";
           }
 	  else {
-	    msg += "\ndoesn't have an argument list, but the variant is not a singleton";
+	    msg += " doesn't have an argument list, but the variant is not a singleton";
           }
 	  return msg;
         }
 
-	//TODO: make a distinction between callee and caller
         function drawArityMismatch(funLoc, arity, args) {
           var argsList = ffi.toArray(args);
           var probablyErrorLocation = getLastUserLocation(e, 0);
@@ -281,26 +277,26 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
               var caller = renderer.drawSrcloc(runtime, probablyErrorLocation);
               var callee = renderer.drawSrcloc(runtime, funLoc);
 
-              return "Expected to get "
-		+ arity
-		+ " arguments when calling the function at\n"
-		+ callee
-		+ "\nfrom\n"
-		+ caller
-		+ "\nbut got these "
-		+ argsList.length + " arguments: "
-		+ argsText;
+              return "Expected to get " +
+		  arity +
+		  " arguments when calling the function at " +
+		  callee +
+		  " from " +
+		  caller +
+		  " but got these " +
+		  argsList.length + " arguments: " +
+		  argsText;
             },
             "builtin": function(name) {
               var caller = renderer.drawSrcloc(runtime, probablyErrorLocation);
 
-              return "Expected to get "
-		+ arity
-		+ " at\n"
-		+ caller
-		+ "\nbut got these "
-		+ args.length + " arguments: "
-		+ argsText;
+              return "Expected to get " +
+		  arity +
+		  " at " +
+		  caller +
+		  " but got these " +
+		  args.length + " arguments: " +
+		  argsText;
 	    }
           });
         }
@@ -310,7 +306,7 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 	  var msg = "";
 
           if(probablyErrorLocation !== undefined) {
-	    msg = message + " At:\n" + renderer.drawSrcloc(runtime, probablyErrorLocation);
+	    msg = message + " At: " + renderer.drawSrcloc(runtime, probablyErrorLocation);
           } else {
 	    msg = message;
           }
@@ -319,55 +315,57 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 
 	//Note(ben) not sure when this arises
 	function drawUninitializedId(loc, name) {
-	  return "The name "
-	    + renderer.renderName(name)
-	    + " was used at\n"
-	    + renderer.drawSrcloc(runtime, loc)
-	    + "\nbefore it was defined";
+	  return "The name " +
+		  renderer.renderName(name) +
+		  " was used at " +
+		  renderer.drawSrcloc(runtime, loc) +
+		  " before it was defined";
 	}
 
 	function drawNoBranchesMatched(loc, type) {
-	  return "No cases matched in e "
-	    + renderer.renderName(type)
-	    + " expression at\n"
-	    + renderer.drawSrcloc(runtime, loc) + "\n\n"
-	    + drawStackTrace(e);
+	  return "No cases matched in e " +
+		  renderer.renderName(type) +
+		  " expression at " +
+		  renderer.drawSrcloc(runtime, loc) +
+		  "\n\n" +
+		  drawStackTrace(e);
         }
 
 	function drawNoCasesMatched(loc, value) {
-	  return "No cases matched in the cases expression at \n"
-	    + renderer.drawSrcloc(runtime, loc)
-	    + "\nfor the value:\n"
-	    + renderer.renderValueHighlight(runtime, value) + "\n\n"
-	    + drawStackTrace(e);
+	  return "No cases matched in the cases expression at " +
+		  renderer.drawSrcloc(runtime, loc) +
+		  " for the value: " +
+		  renderer.renderValueHighlight(runtime, value) +
+		  "\n\n" +
+		  drawStackTrace(e);
         }
 
 	//Note(ben) when are the next two triggered?
 	function drawNonBooleanCondition(loc, type, value) {
-	  return "Expected true for false for the test in an "
-	    + renderer.renderName(type)
-	    + " expression, but got:\n"
-	    + renderer.renderValueHighlight(runtime, value)
-	    + "\nat\n"
-	    + renderer.drawSrcloc(runtime, loc);
+	  return "Expected true for false for the test in an " +
+		  renderer.renderName(type) +
+		  " expression, but got: " +
+		  renderer.renderValueHighlight(runtime, value) +
+		  " at " +
+		  renderer.drawSrcloc(runtime, loc);
         }
 
 	function drawNonBooleanOp(loc, position, type, value) {
-	  return "Expected true or false for the "
-	    + position
-	    + " argument in "
-	    + renderer.renderName(type)
-	    + " expression, but got:\n"
-	    + renderer.renderValueHighlight(runtime, value)
-	    + "\nat\n"
-	    + renderer.drawSrcloc(runtime, loc);
+	  return "Expected true or false for the " +
+		  position +
+		  " argument in " +
+		  renderer.renderName(type) +
+		  " expression, but got: " +
+		  renderer.renderValueHighlight(runtime, value) +
+		  " at " +
+		  renderer.drawSrcloc(runtime, loc);
         }
 
 	function drawNonFunctionApp(loc, nonFunVal) {
-	  return "Expected a function in application but got:\n"
-	    + renderer.renderValueHighlight(runtime, nonFunVal)
-	    + "\nat\n"
-	    + renderer.drawSrcloc(runtime, loc);
+	  return "Expected a function in application but got: " +
+		  renderer.renderValueHighlight(runtime, nonFunVal) +
+		  " at " +
+		  renderer.drawSrcloc(runtime, loc);
         }
 
 	//Note(ben) can / will this be used in the repl?
@@ -376,41 +374,48 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 	}
 
 	function drawFieldNotFound(loc, obj, field) {
-	  return "Field "
-	    + renderer.renderName(field)
-	    + " not found in the lookup expression at\n"
-	    + renderer.drawSrcloc(runtime, loc)
-	    + "\nThe object was:\n"
-	    + renderer.renderValueHighlight(runtime, obj) + "\n\n"
-	    + drawStackTrace(e);
+	  return "Field " +
+		  renderer.renderName(field) +
+		  " not found in the lookup expression at " +
+		  renderer.drawSrcloc(runtime, loc) +
+		  "\n\n" +
+		  "The object was: " +
+		  renderer.renderValueHighlight(runtime, obj) +
+		  "\n\n" +
+		  drawStackTrace(e);
         }
 
 	function drawLookupNonObject(loc, nonObj, field) {
-	  return "Tried to look up field "
-	    + renderer.renderName(field)
-	    + " on a non-object in the lookup expression at\n"
-	    + renderer.drawSrcloc(runtime, loc)
-	    + "\nThe non-object was:\n"
-	    + renderer.renderValueHighlight(runtime, nonObj) + "\n\n"
-	    + drawStackTrace(e);
+	  return "Tried to look up field " +
+		  renderer.renderName(field) +
+		  " on a non-object in the lookup expression at " +
+		  renderer.drawSrcloc(runtime, loc) +
+		  "\n\n" +
+		  "The non-object was: " +
+		  renderer.renderValueHighlight(runtime, nonObj) +
+		  "\n\n" +
+		  drawStackTrace(e);
         }
 
 	function drawExtendNonObject(loc, nonObj) {
-	  return "Tried to extend a non-object in the expression at\n"
-	    + renderer.drawSrcloc(runtime, loc)
-	    + "\nThe non-object was:\n"
-	    + renderer.renderValueHighlight(runtime, nonObj) + "\n\n"
-	    + drawStackTrace(e);
+	  return "Tried to extend a non-object in the expression at " +
+		  renderer.drawSrcloc(runtime, loc) +
+		  "\n\n" +
+		  "The non-object was: " +
+		  renderer.renderValueHighlight(runtime, nonObj) +
+		  "\n\n" +
+		  drawStackTrace(e);
         }
 
 	function drawInvalidArrayIndex(methodName, array, index, reason) {
           var probablyErrorLocation = getLastUserLocation(e, 0);
 
-	  return "Invalid aray index "
-	    + index
-	    + " around the function call at\n"
-	    + renderer.drawSrcloc(runtime, probablyErrorLocation) + "\n\n"
-	    + drawStackTrace(e);
+	  return "Invalid aray index " +
+		  index +
+		  " around the function call at " +
+		  renderer.drawSrcloc(runtime, probablyErrorLocation) +
+		  "\n\n" +
+		  drawStackTrace(e);
         }
 
 	//Note(ben) how to test this?
@@ -420,34 +425,45 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 	    return renderer.renderName(n);
 	  });
 
-	  return "The module(s) "
-	    + arr.join(", ")
-	    + " failed to load";
+	  return "The module(s) " +
+		  arr.join(", ") +
+		  " failed to load";
         }
 
 	function drawPlusError(val1, val2) {
-	  return "Invalid use of + for these values:\n"
-	    + renderer.renderValueHighlight(runtime, val1) + "\n"
-	    + renderer.renderValueHighlight(runtime, val2) + "\n"
-	    + "Plus takes one of:\n"
-	    + "  - Two strings\n"
-	    + "  - Two numbers\n"
-	    + "  - A left-hand side with a _plus method\n\n"
-	    + drawStackTrace(e);
+	  return "Invalid use of + for these values: " +
+		  renderer.renderValueHighlight(runtime, val1) +
+		  ", " +
+		  renderer.renderValueHighlight(runtime, val2) +
+		  "\n\n" +
+		  "Plus takes one of:" +
+		  "\n" +
+		  "  - Two strings" +
+		  "\n" +
+		  "  - Two numbers" +
+		  "\n" +
+		  "  - A left-hand side with a _plus method" +
+		  "\n\n" +
+		  drawStackTrace(e);
         }
 
 	function drawNumericBinopError(val1, val2, opname, methodname) {
-	  return "Invalid use of "
-	    + renderer.renderName(opname)
-	    + " for these values:\n"
-	    + renderer.renderValueHighlight(runtime, val1) + "\n"
-	    + renderer.renderValueHighlight(runtime, val2) + "\n"
-	    + "Either:\n"
-	    + "  - Both arguments must be numbers, or\n"
-	    + "  - The left-hand side must have a "
-	    + renderer.renderName(methodname)
-	    + " method\n\n"
-	    + drawStackTrace(e);
+	  return "Invalid use of " +
+		  renderer.renderName(opname) +
+		  " for these values: " +
+		  renderer.renderValueHighlight(runtime, val1) +
+		  ", " +
+		  renderer.renderValueHighlight(runtime, val2) +
+		  "\n\n" +
+		  "Either:" +
+		  "\n" +
+		  "  - Both arguments must be numbers, or" +
+		  "\n" +
+		  "  - The left-hand side must have a " +
+		  renderer.renderName(methodname) +
+		  " method" +
+		  "\n\n" +
+		  drawStackTrace(e);
         }
 
         function drawPyretRuntimeError() {
@@ -476,26 +492,31 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 	}
 
         function drawParseErrorNextToken(loc, nextToken) {
-          var explanationMissing = "The program is missing something\n"
-	    + "Look carefully around the location. Is something missing just before it?  Common missing items are colons ':', commas ',', string markers '\"', and keywords.\n"
-            + "Usually, inserting the missing item will fix this error";
-          var explanationExtra = "The program contains something extra\n"
-	    + "Look carefully around the location. Does it contains something extra?  A common source of errors is typing too much text or in the wrong order.\n"
-            + "Usually, removing the extra item will fix this error. However, you may have meant to keep this text, so think before you delete!";
-          var explanation = "Typical reasons for getting this error are\n1)\n"
-	    + explanationMissing
-	    + "\n2)\n"
-	    + explanationExtra;
+          var explanationMissing = "The program is missing something" +
+		  "\n\n" +
+		  "Look carefully around the location. Is something missing just before it?  Common missing items are colons ':', commas ',', string markers '\"', and keywords." +
+		  "\n\n" +
+		  "Usually, inserting the missing item will fix this error";
+          var explanationExtra = "The program contains something extra" +
+		  "\n\n" +
+		  "Look carefully around the location. Does it contains something extra?  A common source of errors is typing too much text or in the wrong order." +
+		  "\n\n" +
+		  "Usually, removing the extra item will fix this error. However, you may have meant to keep this text, so think before you delete!";
+          var explanation = "Typical reasons for getting this error are\n1)\n" +
+		  explanationMissing +
+		  "\n2)\n" +
+		  explanationExtra;
 
-	  return "Pyret didn't understand your program around\n"
-	    + renderer.drawSrcloc(runtime, loc) + "\n"
-	    + explanation;
+	  return "Pyret didn't understand your program around " +
+		  renderer.drawSrcloc(runtime, loc) +
+		  "\n\n" +
+		  explanation;
         }
 
         function drawParseErrorUnterminatedString(loc) {
-          return "Pyret thinks your program has an incomplete string literal around\n"
-	    + renderer.drawSrcloc(runtime, loc)
-	    + "\n you may be missing closing punctuation.";
+          return "Pyret thinks your program has an incomplete string literal around " +
+		  renderer.drawSrcloc(runtime, loc) +
+		  " you may be missing closing punctuation.";
         }
 
         function drawParseErrorEOF(loc) {
@@ -510,11 +531,13 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
             var nestedFailure = ffi.contractFail(annLoc, reason);
             var nestedExn = runtime.makePyretFailException(nestedFailure);
 
-	    return "Failed while initializing a graph at "
-	      + renderer.drawSrcloc(runtime, probablyErrorLocation)
-	      + " because:\n"
-	      + drawError(runtime, nestedExn) + "\n\n"
-	      + drawStackTrace(e);
+	    return "Failed while initializing a graph at " +
+		    renderer.drawSrcloc(runtime, probablyErrorLocation) +
+		    " because:" +
+		    "\n" +
+		    drawError(runtime, nestedExn) +
+		    "\n\n" +
+		    drawStackTrace(e);
           };
         }
 
@@ -523,15 +546,16 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
           return function(val, type) {
             var probablyErrorLocation = getLastUserLocation(e, 0);
 
-	    return "Expected to get a "
-	      + renderer.renderType(type)
-	      + " because of the annotation at\n"
-	      + renderer.drawSrcloc(runtime, loc)
-	      + "\nbut got:\n"
-	      + renderer.renderValueHighlight(runtime, val)
-	      + "\ncalled from around\n"
-	      + renderer.drawSrcloc(runtime, probablyErrorLocation) + "\n\n"
-	      + drawStackTrace(e);
+	    return "Expected to get a " +
+		    renderer.renderType(type) +
+		    " because of the annotation at " +
+		    renderer.drawSrcloc(runtime, loc) +
+		    " but got: " +
+		    renderer.renderValueHighlight(runtime, val) +
+		    " called from around " +
+		    renderer.drawSrcloc(runtime, probablyErrorLocation) +
+		    "\n\n" +
+		    drawStackTrace(e);
           };
         }
 
@@ -539,35 +563,36 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
           return function(val, predName) {
             var probablyErrorLocation = getLastUserLocation(e, 0);
 
-	    return "The predicate "
-	      + renderer.renderName(predName)
-	      + " in the annotation at\n"
-	      + renderer.drawSrcloc(runtime, loc)
-	      + "\nreturned false for this value:\n"
-	      + renderer.renderValueHighlight(runtime, val)
-	      + "\ncalled from around\n"
-	      + renderer.drawSrcloc(runtime, probablyErrorLocation) + "\n\n"
-	      + drawStackTrace(e);
+	    return "The predicate " +
+		    renderer.renderName(predName) +
+		    " in the annotation at " +
+		    renderer.drawSrcloc(runtime, loc) +
+		    " returned false for this value: " +
+		    renderer.renderValueHighlight(runtime, val) +
+		    " called from around " +
+		    renderer.drawSrcloc(runtime, probablyErrorLocation) +
+		    "\n\n" +
+		    drawStackTrace(e);
           };
         }
 
         function drawRecordFieldsFail(isArg, loc) {
           return function(val, fieldFailures) {
-	    return "The record annotation at\n"
-	      + renderer.drawSrcloc(runtime, loc)
-	      + "\nfailed on this value:\n"
-	      + renderer.renderValueHighlight(runtime, val);
+	    return "The record annotation at " +
+		    renderer.drawSrcloc(runtime, loc) +
+		    " failed on this value: " +
+		    renderer.renderValueHighlight(runtime, val);
           };
         }
 
         function drawDotAnnNotPresent(isArg, loc) {
           return function(name, field) {
-	    return "Couldn't find the annotation named "
-	      + renderer.renderName(field)
-	      + " at\n"
-	      + renderer.drawSrcloc(runtime, loc)
-	      + "\nin the annotations from "
-	      + renderer.renderName(name);
+	    return "Couldn't find the annotation named " +
+		    renderer.renderName(field) +
+		    " at " +
+		    renderer.drawSrcloc(runtime, loc) +
+		    " in the annotations from " +
+		    renderer.renderName(name);
           };
         }
 
@@ -616,7 +641,6 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
 	return "An unexpected error occurred: " + String(e);
       }
 
-      //TODO: Change rendering strategies
       if(exception instanceof Array) {
 	return drawCompileErrors(exception);
       }
@@ -636,7 +660,7 @@ define(["js/ffi-helpers", "trove/srcloc", "trove/error", "trove/contracts", "com
   }
 
   function drawAndPrintError(runtime, exception) {
-    console.log(drawError(runtime, exception));
+    process.stdout.write(drawError(runtime, exception) + "\n");
   }
 
   return {

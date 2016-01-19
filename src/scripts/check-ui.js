@@ -34,25 +34,25 @@ define(["js/ffi-helpers", "trove/option", "trove/srcloc", "./output-ui", "./erro
 	      return get(tr, "reason").app();
 	    }, function(result) {
 	      msg += renderer.renderCheckFailure(
-		"test at "
-		+ renderer.drawSrcloc(runtime, get(tr, "loc"))
-		+ " ("
-		+ get(tr, "code")
-		+ "): failed, reason:\n"
-		+ result.result
-		+ "\n");
+		"test at " +
+		renderer.drawSrcloc(runtime, get(tr, "loc")) +
+		" (" +
+		get(tr, "code") +
+		"): failed, reason:\n" +
+		result.result +
+		"\n");
 	    });
 	  }
 	  else {
 	    checkPassedAll += 1;
 	    checkPassed += 1;
 	    msg += renderer.renderCheckSuccess(
-	      "test at "
-	      + renderer.drawSrcloc(runtime, get(tr, "loc"))
-	      + " ("
-	      + get(tr, "code")
-	      + "): ok"
-	      + "\n");
+	      "test at " +
+	      renderer.drawSrcloc(runtime, get(tr, "loc")) +
+	      " (" +
+	      get(tr, "code") +
+	      "): ok" +
+	      "\n");
 	  }
 	});
 
@@ -64,21 +64,22 @@ define(["js/ffi-helpers", "trove/option", "trove/srcloc", "./output-ui", "./erro
 	    thisBlockErrored = true;
 	    checkBlocksErrored += 1;
 	    msg += renderer.renderCheckFailure(
-	      "Check block "
-	      + renderer.renderName(name)
-	      + " at "
-	      + renderer.drawSrcloc(runtime, get(cr, "loc"))
-	      + " ended in error (all tests may not have run)\n\n"
-	      + errorUI.drawError(runtime, get(error, "value").val)
-	      + "\n\n");
+	      "Check block " +
+	      renderer.renderName(name) +
+	      " at " +
+	      renderer.drawSrcloc(runtime, get(cr, "loc")) +
+	      " ended in error (all tests may not have run)" +
+	      "\n\n" +
+	      errorUI.drawError(runtime, get(error, "value").val) +
+	      "\n\n");
 	  }
 	}
 
 	if(!thisBlockErrored) {
 	  if(checkTotal > 1) {
-	    msg += checkPassed + "/" + checkTotal
-	      + " tests passed in check block: "
-	      + name;
+	    msg += checkPassed + "/" + checkTotal +
+		    " tests passed in check block: " +
+		    name;
 	  }
 	  else if(checkTotal === 1) {
 	    if(checkPassed === 1) {
@@ -106,21 +107,20 @@ define(["js/ffi-helpers", "trove/option", "trove/srcloc", "./output-ui", "./erro
       }
 
       if (checkBlocksErrored > 0) {
-	return msg + checkPassedAll
-	  + " tests passed and "
-	  + (checkTotalAll - checkPassedAll)
-	  + " failed in all check blocks.\n"
-	  + renderer.renderCheckFailure(
-	  + "HOWEVER "
-	  + checkBlocksErrored
-	  + " check block(s) ended in error, so some tests may not have run.\n"
-	  + "Check the output above to see what errors occured.");
+	return msg + checkPassedAll +
+		" tests passed and " +
+		(checkTotalAll - checkPassedAll) +
+		" failed in all check blocks.\n" +
+		renderer.renderCheckFailure("HOWEVER " +
+				checkBlocksErrored +
+				" check block(s) ended in error, so some tests may not have run.\n" +
+				"Check the output above to see what errors occured.");
       }
 
       if(checkBlockCount > 1) {
-	return msg + checkPassedAll
-	  + "/" + checkTotalAll
-	  + " tests passed in all check blocks.";
+	return msg + checkPassedAll +
+		"/" + checkTotalAll +
+		" tests passed in all check blocks.";
       }
 
       return msg;
@@ -133,7 +133,7 @@ define(["js/ffi-helpers", "trove/option", "trove/srcloc", "./output-ui", "./erro
     var result = drawCheckResults(runtime, checkResults);
 
     if(result !== "") {
-      console.log(result);
+      process.stdout.write(result + "\n");
     }
   }
 

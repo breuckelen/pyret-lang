@@ -25,11 +25,9 @@ r(["q", "js/repl-lib", "js/runtime-anf", "compiler/compile-structs.arr", "./inpu
     inputUI.on("command", function(cmd) {
       inputUI.setListening(false);
 
-      resultPromise = resultPromise.then(function(_) {
+      resultPromise.then(function(_) {
 	return repl.run(cmd, "interactions" + inputUI.getPromptNumber());
-      });
-
-      resultPromise.then(function(res) {
+      }).then(function(res) {
 	try {
 	  if(runtime.isSuccessResult(res)) {
 	    renderer.drawAndPrintAnswer(runtime, get(res.result, "answer"));
@@ -45,6 +43,8 @@ r(["q", "js/repl-lib", "js/runtime-anf", "compiler/compile-structs.arr", "./inpu
 	  console.error("Interactions stopped due to error: " + e.stack);
 	  process.exit(1);
 	}
+
+	inputUI.setListening(true);
       });
     }).on('close', function() {
       process.exit(0);
