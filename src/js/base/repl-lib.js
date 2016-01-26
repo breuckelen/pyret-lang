@@ -14,7 +14,7 @@ define(["q", "js/eval-lib", "compiler/repl-support.arr"], function(Q, eval, rs) 
       var somethingRunning = false;
       function get(obj, fld) { return runtime.getField(obj, fld); }
 
-      // adding `@import` directive to the environment
+      // adding `repl-include` function
       var importFunction = runtime.makeFunction(
 	 function(val){
 	  return runtime.safeCall(function() {
