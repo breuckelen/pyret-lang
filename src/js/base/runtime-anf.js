@@ -1,6 +1,8 @@
 /***
 This is the runtime for the ANF'd version of pyret
 */
+fs = require('fs');
+
 "use strict";
 /** @typedef {!Object} */
 var Bignum;

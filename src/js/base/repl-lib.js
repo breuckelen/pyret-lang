@@ -1,33 +1,55 @@
 define(["q", "js/eval-lib", "compiler/repl-support.arr"], function(Q, eval, rs) {
-
-  var defer = function(f) { setTimeout(f, 0); }
+  var defer = function(f) { setTimeout(f, 0); };
   function createRepl(runtime, namespace, initialCompileEnv, options) {
     var setImmediate = function(f) { setTimeout(f, 0); };
     var runImmediate = function(f, then) {
       setImmediate(function() {
         runtime.runThunk(f, then);
       });
-    }
+    };
     var mainName = options.name || "repl-main";
     var typeCheck = options.typeCheck || false;
     return runtime.loadModules(namespace, [rs], function(replSupport) {
       var toRun = [];
       var somethingRunning = false;
       function get(obj, fld) { return runtime.getField(obj, fld); }
+
+      // adding `@import` directive to the environment
+      var importFunction = runtime.makeFunction(
+	 function(val){
+	  return runtime.safeCall(function() {
+	    var s = runtime.unwrap(val);
+	    fs.readFile(s, 'utf8', function (err, contents) {
+	      if (err) {
+		console.log(err);
+	      }
+	      else {
+		run(contents);
+	      }
+	    });
+	  }, function(_) {
+	    process.stdout.write("\n");
+	    return val;
+	  });
+      });
       
       // adding `exit` function into the environment
       var exitFunction = runtime.makeFunction(function() {
         runtime.checkArity(0, arguments, 'exit');
         process.exit();
-      })
+      });
       var exitCodeFunction = runtime.makeFunction(function(exitcode) {
         runtime.checkArity(1, arguments, 'exit-code');
         runtime.checkNumber(exitcode);
         process.exit(exitcode);
-      })
-      namespace = namespace.set('exit', exitFunction)
-      namespace = namespace.set('quit', exitFunction)
-      namespace = namespace.set('exit-code', exitCodeFunction)
+      });
+
+      namespace = namespace.set('repl-include', importFunction);
+      namespace = namespace.set('exit', exitFunction);
+      namespace = namespace.set('quit', exitFunction);
+      namespace = namespace.set('exit-code', exitCodeFunction);
+
+      initialCompileEnv = get(replSupport, "add-global-binding").app(initialCompileEnv, "repl-include");
       initialCompileEnv = get(replSupport, "add-global-binding").app(initialCompileEnv, "exit");
       initialCompileEnv = get(replSupport, "add-global-binding").app(initialCompileEnv, "quit");
       initialCompileEnv = get(replSupport, "add-global-binding").app(initialCompileEnv, "exit-code");

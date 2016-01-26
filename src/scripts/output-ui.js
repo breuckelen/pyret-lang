@@ -288,11 +288,7 @@ var indents = {
     'pattern': wordRegexp(['data', 'ask', 'cases'], false),
     'indent_offset': -2,
     'indent_level': function(indentArray, index) {
-      if(index > 0) {
-	return indentArray[index - 1].indent_level + 2;
-      }
-
-      return 2;
+      return indentArray[index].indent_level + 2;
     }
   },
   'unindent_single_soft':
@@ -300,35 +296,15 @@ var indents = {
     'pattern': wordRegexp(['\\|', 'else', 'where'], false),
     'indent_offset': -1,
     'indent_level': function(indentArray, index) {
-      if(index > 0) {
-	return indentArray[index - 1].indent_level;
-      }
-
-      return 0;
-    }
-  },
-  'no_indent':
-  {
-    'pattern': wordRegexp(['\\(.*\\)'], false),
-    'indent_offset': 0,
-    'indent_level': function(indentArray, index) {
-      if(index > 0) {
-	return indentArray[index - 1].indent_level;
-      }
-
-      return 1;
+      return indentArray[index].indent_level;
     }
   },
   'indent_single':
   {
-    'pattern': wordRegexp(['if', '\\('], false),
+    'pattern': wordRegexp(['if', 'fun', 'check', 'lam', '\\('], false),
     'indent_offset': -1,
     'indent_level': function(indentArray, index) {
-      if(index > 0) {
-	return indentArray[index - 1].indent_level + 1;
-      }
-
-      return 1;
+      return indentArray[index].indent_level + 1;
     }
   },
   'sharing':
@@ -336,11 +312,7 @@ var indents = {
     'pattern': wordRegexp(['sharing'], false),
     'indent_offset': -1,
     'indent_level': function(indentArray, index) {
-      if(index > 0) {
-	return indentArray[index - 1].indent_level - 1;
-      }
-
-      return 0;
+      return indentArray[index].indent_level - 1;
     }
   },
   'close_parantheses':
@@ -348,11 +320,7 @@ var indents = {
     'pattern': wordRegexp(['\\)'], false),
     'indent_offset': 1,
     'indent_level': function(indentArray, index) {
-      if(index > 0) {
-	return indentArray[index - 1].indent_level - 1;
-      }
-
-      return 0;
+      return indentArray[index].indent_level - 1;
     }
   },
   'end':
@@ -360,10 +328,10 @@ var indents = {
     'pattern': wordRegexp(['end'], false),
     'indent_offset': 0,
     'indent_level': function(indentArray, index) {
-      if(index > 1) {
-	var level = indentArray[index - 1].indent_level;
-	var lastLevel = indentArray[index - 2].indent_level;
-	index = index - 2;
+      if(index > 0) {
+	var level = indentArray[index].indent_level;
+	var lastLevel = indentArray[index - 1].indent_level;
+	index = index - 1;
 
 	while(level <= lastLevel && index > 0) {
 	  lastLevel = indentArray[--index].indent_level;
@@ -371,25 +339,13 @@ var indents = {
 
 	if(index === 0)
 	{
-	  return 0;
+	  return indentArray[index].indent_level - 1;
 	}
 
 	return lastLevel;
       }
 
-      return 0;
-    }
-  },
-  'catchall':
-  {
-    'pattern': /.*/,
-    'indent_offset': 0,
-    'indent_level': function(indentArray, index) {
-      if(index > 0) {
-	return indentArray[index - 1].indent_level;
-      }
-
-      return 0;
+      return indentArray[index].indent_level - 1;
     }
   }
 };
@@ -509,17 +465,29 @@ define([], function() {
 
     lines.forEach(function(cmd) {
       var indentType;
-      index += 1;
+      var matches;
+      var matched = true;
 
-      for(indentType in indents) {
-	if(indents.hasOwnProperty(indentType)) {
-	  if(cmd.match(indents[indentType].pattern)) {
-	    indentArray.push(
-	      {
-		'indent_offset': indents[indentType].indent_offset,
-		'indent_level': indents[indentType].indent_level(indentArray, index)
-	      });
-	    break;
+      index += 1;
+      indentArray.push(
+	{
+	  'indent_offset': 0,
+	  'indent_level': index > 0 ? indentArray[index - 1].indent_level : 0
+	});
+
+      while(matched) {
+	matched = false;
+
+	for(indentType in indents) {
+	  if(indents.hasOwnProperty(indentType)) {
+	    matches = cmd.match(indents[indentType].pattern);
+
+	    if(matches) {
+	      indentArray[index].indent_offset += indents[indentType].indent_offset;
+	      indentArray[index].indent_level = indents[indentType].indent_level(indentArray, index);
+	      cmd = cmd.eat(matches[0]);
+	      matched = true;
+	    }
 	  }
 	}
       }

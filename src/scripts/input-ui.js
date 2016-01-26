@@ -855,7 +855,7 @@ define(["q", "./output-ui"], function(Q, outputUI) {
     this.updateIndentArray();
 
     return this.indentArray.length === 0 ||
-      this.indentArray[this.indentArray.length - 1].indent_level === 0;
+      this.indentArray[this.indentArray.length - 1].indent_level <= 0;
   };
 
   /**
@@ -1171,10 +1171,9 @@ define(["q", "./output-ui"], function(Q, outputUI) {
     }
   };
 
-  /* TODO: match multiple patterns on same line for indenting */
+  /* TODO: fix pauses */
   /* TODO: fix pasting */
-  /* TODO: import directive */
-  /* TODO: document (how to use and extend) */
+  /* TODO: document code (how to use and extend) */
   /* TODO: tests */
   InputUI.prototype.__proto__ = events.EventEmitter.prototype;
 
