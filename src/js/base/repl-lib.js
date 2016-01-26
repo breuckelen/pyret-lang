@@ -28,7 +28,6 @@ define(["q", "js/eval-lib", "compiler/repl-support.arr"], function(Q, eval, rs) 
 	      }
 	    });
 	  }, function(_) {
-	    process.stdout.write("\n");
 	    return val;
 	  });
       });
