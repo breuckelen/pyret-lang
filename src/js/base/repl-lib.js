@@ -14,18 +14,22 @@ define(["q", "js/eval-lib", "compiler/repl-support.arr"], function(Q, eval, rs) 
       var somethingRunning = false;
       function get(obj, fld) { return runtime.getField(obj, fld); }
 
-      // adding `repl-include` function (use promises to run synchronously)
-      /* NOTE: the issue is that to include, I need to run the code, but
-       * running the code adds another layer of promise, on top of the layer
-       * of promise that was already added by calling run in the first place.
-       * So somehow I need to do all of the evaluation synchornously */
-      var replIncludeFunction = runtime.makeFunction(function(filename) {
-	 return runtime.safeCall(function() {
-	   var code = fs.readFileSync(runtime.unwrap(filename), 'utf-8');
-	   return code;
-	 }, function(code) {
-	   return run(code);
-	 });
+      // adding `repl-include` function
+      var replIncludeFunction = runtime.makeFunction(
+	 function(val){
+	  return runtime.safeCall(function() {
+	    var s = runtime.unwrap(val);
+	    fs.readFile(s, 'utf8', function (err, contents) {
+	      if (err) {
+		console.log(err);
+	      }
+	      else {
+		run(contents);
+	      }
+	    });
+	  }, function(_) {
+	    return val;
+	  });
       });
       
       // adding `exit` function into the environment
