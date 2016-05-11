@@ -5,38 +5,28 @@
 var chalk = require("chalk");
 
 /* Additional String methods */
-String.prototype.repeat = function(num)
+if(!String.prototype.hasOwnProperty("repeat"))
 {
-  var ret = "";
-
-  while(num-- > 0)
+  String.prototype.repeat = function(num)
   {
-    ret += this;
-  }
+    var ret = "";
 
-  return ret;
-};
+    while(num-- > 0)
+    {
+      ret += this;
+    }
 
-String.prototype.eat = function(reg)
+    return ret;
+  };
+}
+
+if(!String.prototype.hasOwnProperty("eat"))
 {
-  return this.replace(reg, "");
-};
-
-String.prototype.eatNext = function(reg)
-{
-  return this.slice(1, this.length);
-};
-
-String.prototype.eatUntil = function(reg)
-{
-  var str = this;
-
-  while(str && !str.match(reg)) {
-    str = str.eatNext();
-  }
-
-  return str.eat(reg);
-};
+  String.prototype.eat = function(reg)
+  {
+    return this.replace(reg, "");
+  };
+}
 
 /* @class StringStream
  *    a class used to process text by pattern matching.
@@ -108,7 +98,7 @@ StringStream.prototype = {
  *    make single regular expression from multiple words.
  */
 function wordRegexp(words, startString) {
-  var startPattern = startString ? "^((" : "((";
+  var startPattern = startString ? "^\\s*((" : "((";
   var endPattern = "))(\\s+|$|\\b|(?![a-zA-Z0-9-_]))";
   return new RegExp(startPattern + words.join(")|(") + endPattern);
 }
@@ -286,47 +276,59 @@ var indents = {
   'indent_double':
   {
     'pattern': wordRegexp(['data', 'ask', 'cases'], false),
-    'indent_offset': -2,
+    'indent_offset': function(indentArray, index) {
+      return 0;
+    },
     'indent_level': function(indentArray, index) {
-      return indentArray[index].indent_level + 2;
-    }
-  },
-  'unindent_single_soft':
-  {
-    'pattern': wordRegexp(['\\|', 'else', 'where'], false),
-    'indent_offset': -1,
-    'indent_level': function(indentArray, index) {
-      return indentArray[index].indent_level;
+      return 2;
     }
   },
   'indent_single':
   {
     'pattern': wordRegexp(['if', 'fun', 'check', 'lam', '\\('], false),
-    'indent_offset': -1,
+    'indent_offset': function(indentArray, index) {
+      return 0;
+    },
     'indent_level': function(indentArray, index) {
-      return indentArray[index].indent_level + 1;
+      return 1;
+    }
+  },
+  'unindent_single_soft':
+  {
+    'pattern': wordRegexp(['\\|', 'else', 'where'], true),
+    'indent_offset': function(indentArray, index) {
+      return -1;
+    },
+    'indent_level': function(indentArray, index) {
+      return 0;
     }
   },
   'sharing':
   {
     'pattern': wordRegexp(['sharing'], false),
-    'indent_offset': -1,
+    'indent_offset': function(indentArray, index) {
+      return -2;
+    },
     'indent_level': function(indentArray, index) {
-      return indentArray[index].indent_level - 1;
+      return 1;
     }
   },
   'close_parantheses':
   {
     'pattern': wordRegexp(['\\)'], false),
-    'indent_offset': 1,
+    'indent_offset': function(indentArray, index) {
+      return 0;
+    },
     'indent_level': function(indentArray, index) {
-      return indentArray[index].indent_level - 1;
+      return -1;
     }
   },
   'end':
   {
-    'pattern': wordRegexp(['end'], false),
-    'indent_offset': 0,
+    'pattern': wordRegexp(['end', ';'], false),
+    'indent_offset': function(indentArray, index) {
+      return 0;
+    },
     'indent_level': function(indentArray, index) {
       if(index > 0) {
 	var level = indentArray[index].indent_level;
@@ -337,15 +339,59 @@ var indents = {
 	  lastLevel = indentArray[--index].indent_level;
 	}
 
-	if(index === 0)
+	if(index === 0 & level <= lastLevel)
 	{
-	  return indentArray[index].indent_level - 1;
+	  return 0;
 	}
 
-	return lastLevel;
+	return lastLevel - level;
       }
 
-      return indentArray[index].indent_level - 1;
+      return -1;
+    }
+  },
+  'end_s':
+  {
+    'pattern': wordRegexp(['end', ';'], true),
+    'indent_offset': function(indentArray, index) {
+      if(index > 0) {
+	var level = indentArray[index].indent_level;
+	var lastLevel = indentArray[index - 1].indent_level;
+	index = index - 1;
+
+	while(level <= lastLevel && index > 0) {
+	  lastLevel = indentArray[--index].indent_level;
+	}
+
+	if(index === 0 & level <= lastLevel)
+	{
+	  return 0;
+	}
+
+	return lastLevel - level;
+      }
+
+      return -1;
+    },
+    'indent_level': function(indentArray, index) {
+      if(index > 0) {
+	var level = indentArray[index].indent_level;
+	var lastLevel = indentArray[index - 1].indent_level;
+	index = index - 1;
+
+	while(level <= lastLevel && index > 0) {
+	  lastLevel = indentArray[--index].indent_level;
+	}
+
+	if(index === 0 & level <= lastLevel)
+	{
+	  return 0;
+	}
+
+	return lastLevel - level;
+      }
+
+      return -1;
     }
   }
 };

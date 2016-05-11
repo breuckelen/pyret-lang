@@ -14,23 +14,18 @@ define(["q", "js/eval-lib", "compiler/repl-support.arr"], function(Q, eval, rs) 
       var somethingRunning = false;
       function get(obj, fld) { return runtime.getField(obj, fld); }
 
-      // adding `@import` directive to the environment
-      var importFunction = runtime.makeFunction(
-	 function(val){
-	  return runtime.safeCall(function() {
-	    var s = runtime.unwrap(val);
-	    fs.readFile(s, 'utf8', function (err, contents) {
-	      if (err) {
-		console.log(err);
-	      }
-	      else {
-		run(contents);
-	      }
-	    });
-	  }, function(_) {
-	    process.stdout.write("\n");
-	    return val;
-	  });
+      // adding `repl-include` function (use promises to run synchronously)
+      /* NOTE: the issue is that to include, I need to run the code, but
+       * running the code adds another layer of promise, on top of the layer
+       * of promise that was already added by calling run in the first place.
+       * So somehow I need to do all of the evaluation synchornously */
+      var replIncludeFunction = runtime.makeFunction(function(filename) {
+	 return runtime.safeCall(function() {
+	   var code = fs.readFileSync(runtime.unwrap(filename), 'utf-8');
+	   return code;
+	 }, function(code) {
+	   return run(code);
+	 });
       });
       
       // adding `exit` function into the environment
@@ -44,7 +39,7 @@ define(["q", "js/eval-lib", "compiler/repl-support.arr"], function(Q, eval, rs) 
         process.exit(exitcode);
       });
 
-      namespace = namespace.set('repl-include', importFunction);
+      namespace = namespace.set('repl-include', replIncludeFunction);
       namespace = namespace.set('exit', exitFunction);
       namespace = namespace.set('quit', exitFunction);
       namespace = namespace.set('exit-code', exitCodeFunction);
@@ -151,6 +146,9 @@ define(["q", "js/eval-lib", "compiler/repl-support.arr"], function(Q, eval, rs) 
           }
         });
         return deferred.promise;
+      }
+      function runRepl(code, name)
+      {
       }
       function pause(afterPause) {
         runtime.schedulePause(function(resumer) {

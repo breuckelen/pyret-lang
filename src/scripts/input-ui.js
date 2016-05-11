@@ -1171,6 +1171,10 @@ define(["q", "./output-ui"], function(Q, outputUI) {
     }
   };
 
+  /* TODO: indent level represents next level, and indent_offset represents
+   * offset for current level without indent_level */
+  /* TODO: restartInteractions-like for repl-include */
+  /* TODO: String proto check */
   /* TODO: fix pauses */
   /* TODO: fix pasting */
   /* TODO: document code (how to use and extend) */
